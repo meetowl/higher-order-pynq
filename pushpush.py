@@ -64,7 +64,6 @@ class exp_stub:
             count = count + 1
         # Clear the status register
         self.context.clear(self.rep+4)
-        print(self.context.value(self.rep+4))
         self.res = self.context.value(self.rep)      
         
     def __call__(self) -> int:
@@ -152,7 +151,6 @@ class Context:
         """
         Loads the current global pushpush state
         """
-        print(hardware_metadata_file)
         jsn_f = open(hardware_metadata_file, "r")
         self.global_state = json.load(jsn_f)
         
