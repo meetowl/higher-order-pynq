@@ -1,0 +1,14 @@
+{ "hardware": {
+    "a": {
+       "type": "Int->Int->Bool",
+       "base": 1073741824,
+       "cep_offset": 8
+    }
+    },
+
+    "python": {
+    },
+
+   "CPP": {
+   }
+}
