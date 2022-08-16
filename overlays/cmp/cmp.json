@@ -1,6 +1,6 @@
 { "hardware": {
-    "a": {
-       "type": "Int->Int->Bool",
+    "cmp": {
+       "type": "exp->exp->val",
        "base": 1073741824,
        "cep_offset": 8
     }
