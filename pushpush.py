@@ -143,7 +143,6 @@ class Context:
         #     self.add_py(n_name, "val_com")
         else:
             print("error: Unable to create pushpush object "+n_name)
-
         return ret_object
 
     # ---- Debugging -----
