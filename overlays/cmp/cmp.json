@@ -1,14 +1,15 @@
-{ "hardware": {
-    "cmp": {
-       "type": "exp->exp->val",
-       "base": 1073741824,
-       "cep_offset": 8
-    }
+{
+    "hardware": {
+        "cmp": {
+            "type": "(int-32,int-32)->bool-32",
+            "base": 1073741824,
+            "cep_offset": 8
+        }
     },
 
     "python": {
     },
 
-   "CPP": {
-   }
+    "CPP": {
+    }
 }

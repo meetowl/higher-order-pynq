@@ -1,7 +1,7 @@
 {
     "hardware": {
         "add": {
-            "type": "exp->exp->val",
+            "type": "(int-32,int-32)->bool-32",
             "base": 1073741824,
             "cep_offset": 8
         }

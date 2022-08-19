@@ -1,14 +1,15 @@
-{ "hardware": {
-    "a": {
-       "type": "exp",
-       "base": 1073741824,
-       "cep_offset": 8
-    }
+{
+    "hardware": {
+        "a": {
+            "type": "int-32",
+            "base": 1073741824,
+            "cep_offset": 8
+        }
     },
 
     "python": {
     },
 
-   "CPP": {
-   }
+    "CPP": {
+    }
 }
