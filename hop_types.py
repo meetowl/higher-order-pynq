@@ -25,7 +25,6 @@ class Tuple:
         # if not all_base:
         #     raise TypeError("Must be HoP type") from Exception
 
-        print(f'hello {elementList}')
         self.elements = elementList
 
     def __str__(self):
@@ -34,5 +33,10 @@ class Tuple:
             out += f'{str(e)},'
         return out[:-1] + ')'
 
-#class Signature:
-#    def __init__(self, typestr):
+class Function:
+    def __init__(self, typein, typeout):
+        self.typein = typein
+        self.typeout = typeout
+
+    def __str__(self):
+        return f'{str(self.typein)} -> {str(self.typeout)}'
