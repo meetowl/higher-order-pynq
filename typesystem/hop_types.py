@@ -1,6 +1,7 @@
-from enum import Enum
-import hop_types
-import functools
+import typesystem.typelexer as typelexer
+import typesystem.typeparser as typeparser
+import ply.lex as lex
+import ply.yacc as yacc
 
 class Base:
     def __init__(self, width=32):
@@ -16,15 +17,6 @@ class Base:
 
 class Tuple:
     def __init__(self, elementList):
-        # Make sure everything in arguments is an instance of Base
-        # all_base = functools.reduce(lambda a,b: a & b,
-        #                             map(lambda a:
-        #                                 isinstance(a, hop_types.Base) or
-        #                                 isinstance(a, hop_types.Tuple),
-        #                                 elements))
-        # if not all_base:
-        #     raise TypeError("Must be HoP type") from Exception
-
         self.elements = elementList
 
     def __str__(self):
@@ -40,3 +32,8 @@ class Function:
 
     def __str__(self):
         return f'{str(self.typein)} -> {str(self.typeout)}'
+
+def parse(typestr):
+    lexer = lex.lex(module = typelexer, debug = False)
+    parser = yacc.yacc(module = typeparser, debug = False)
+    return parser.parse(typestr)

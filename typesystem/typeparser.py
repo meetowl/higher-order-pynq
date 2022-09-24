@@ -1,18 +1,25 @@
-from typedef import tokens
-from hop_types import Base,Tuple,Function
+import typesystem.hop_types as ht
+
+tokens = (
+    'BASE',
+    'LPAREN',
+    'RPAREN',
+    'COMMA',
+    'ARROW'
+)
 
 def p_t_1(p):
     't : BASE'
-    p[0] = Base(p[1])
+    p[0] = ht.Base(p[1])
 
 def p_t_2(p):
     't : LPAREN tu RPAREN'
     p[2].reverse()
-    p[0] = Tuple(p[2])
+    p[0] = ht.Tuple(p[2])
 
 def p_t_3(p):
     't : t ARROW t'
-    p[0] = Function(p[1], p[3])
+    p[0] = ht.Function(p[1], p[3])
 
 def p_tu(p):
     'tu : t'
