@@ -1,16 +1,27 @@
 from typedef import tokens
-from hop_types import Base
+from hop_types import Base,Tuple
 
-def p_t(p):
-    '''t : BASE
-         | LPAREN tu RPAREN
-         | t ARROW t'''
+def p_t_1(p):
+    't : BASE'
     p[0] = Base(p[1])
 
+def p_t_2(p):
+    't : LPAREN tu RPAREN'
+    p[2].reverse()
+    p[0] = Tuple(p[2])
+
+def p_t_3(p):
+    't : t ARROW t'
+    p[0] = [p[1], p[3]]
+
 def p_tu(p):
-    '''tu : t
-          | t COMMA tu'''
-    p[0] = tuple([p[1]])
+    'tu : t'
+    p[0] = [p[1]]
+
+def p_tu_2(p):
+    'tu : t COMMA tu'
+    p[3].append(p[1])
+    p[0] = p[3]
 
 def p_error(p):
     print('uh oh!!!!')

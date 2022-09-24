@@ -15,14 +15,18 @@ class Base:
         return f'b{self.width}'
 
 class Tuple:
-    def __init__(self, *elements):
+    def __init__(self, elementList):
         # Make sure everything in arguments is an instance of Base
-        all_base = functools.reduce(lambda a,b: a & b,
-                                    map(lambda a: isinstance(a, hop_types.Base), elements))
-        if not all_base:
-            raise TypeError("Must be HoP type") from Exception
+        # all_base = functools.reduce(lambda a,b: a & b,
+        #                             map(lambda a:
+        #                                 isinstance(a, hop_types.Base) or
+        #                                 isinstance(a, hop_types.Tuple),
+        #                                 elements))
+        # if not all_base:
+        #     raise TypeError("Must be HoP type") from Exception
 
-        self.elements = elements
+        print(f'hello {elementList}')
+        self.elements = elementList
 
     def __str__(self):
         out = '('
