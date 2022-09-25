@@ -1,3 +1,7 @@
+# Stubs File
+# This contains the stubs for each hardware or software function.
+# Ideally, a lot of this will be auto-generated. Aim to class the parameters based on whether
+# we can generate them or not.
 import multiprocessing
 import string
 import types
@@ -8,7 +12,7 @@ from pynq import MMIO
 
 # Stubs Base Class
 class Stub:
-    def __init__(self, context, base, name) -> None:
+    def __init__(self, context, base_addr, signature, name) -> None:
         self.base = base
         self.name = name
         self.cep = 8
@@ -94,10 +98,17 @@ class AddStub(Stub):
             b_mod = HopFunction(self.context, b, anon_b_name)
             self.context.add_py(anon_b_name, "exp")
 
+        # Control Register:
+        ## AP_START = 1, AUTO_RESTART = 1
         self.mmio.write(0x0, 1 | (1 << 7))
+        # Regspace:
+        ## regspace[1]  = GLOBAL_MEMORY_ADDR + &regspace[0]
         self.mmio.write(0x40 + 1*0x4, self.base + 0x40)
+        ## regspace[8]  = caller endpoint address of first argument
         self.mmio.write(0x40 + 8*0x4, a_mod.cep_addr())
+        ## regspace[9]  = caller endpoint address of second argument
         self.mmio.write(0x40 + 9*0x4, b_mod.cep_addr())
+        ## regspace[10] = return endpoint address
         self.mmio.write(0x40 + 10*0x4, self.rep)
         self.listen()
         return self.res

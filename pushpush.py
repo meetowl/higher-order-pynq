@@ -35,30 +35,33 @@ class Context:
         self.mem = allocate(shape=(self.size,), dtype='u4')
         self.top = 0
         self.objects = dict()
-        self.global_state = None
-        self.load_global_state(self.overlay_metadata_name)
-        self.hw = dict()
-        self.cpp = dict()
-        self.py = dict()
-        self.populate_stubs()
+
+        self.functions = dict()
+        self.functions['hardware'] = dict
+        self.functions['python'] = dict
+        self.functions['cpp'] = dict
+
+        self.populate_stubs(self.overlay_metadata_name)
 
     def add_py(self, hopFunc):
         self.py[hopFunc.name] = hopFunc
 
-    def populate_stubs(self)->None:
-        # # populate hardware stubs by type (old way)
-        # for h in self.global_state["hardware"]:
-        #     if self.global_state["hardware"][h]["type"] == "exp":
-        #         base = self.global_state["hardware"][h]["base"]
-        #         self.hw[h] = exp_stub(self, base, h)
-        #     if self.global_state["hardware"][h]["type"] == "exp->exp->val":
-        #         base = self.global_state["hardware"][h]["base"]
-        #         self.hw[h] = exp_exp_val_stub(self, base, h)
+    def populate_stubs(self, overlay_metadata_file)->None:
+        # Load the metadata
+        overlay_metadata = None
+        with open(overlay_metadata_file, "r") as f:
+            overlay_metadata = json.load(f)
 
-        # Populate stubs by name
+        # Construct the current context stubs
         for h in self.global_state['hardware'].keys():
             base = self.global_state['hardware'][h]['base']
             self.hw[h] = stubs.stub_dict[h](self, base, h)
+
+        for funcType in overlay_metadata.keys():
+            if funcType in self.functions.keys():
+                for funcName in overlay_metadata[funcType].keys():
+                    funcMeta = self.overlay_metadata[funcType][funcName]
+                    self.functions[funcType][funcName] = Stub.from_meta_dict(funcType, funcName, funcMeta)
 
     def print_all_objects(self)->None:
         print("Hardware:")
@@ -74,12 +77,8 @@ class Context:
             print("\t"+c+" : "+self.global_state["CPP"][c]["type"])
         return
 
-    def load_global_state(self, hardware_metadata_file:str):
-        """
-        Loads the current global pushpush state
-        """
-        jsn_f = open(hardware_metadata_file, "r")
-        self.global_state = json.load(jsn_f)
+
+
 
     def add(self, name, slots) -> None:
         """
