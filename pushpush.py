@@ -15,6 +15,7 @@ from pynq import Overlay
 
 # Local imports
 import stubs
+import typesystem.hop_types as ht
 
 class Context:
     """
@@ -41,8 +42,8 @@ class Context:
         self.py = dict()
         self.populate_stubs()
 
-    def add_py(self, name, typestr):
-        self.py[name] = typestr
+    def add_py(self, hopFunc):
+        self.py[hopFunc.name] = hopFunc
 
     def populate_stubs(self)->None:
         # # populate hardware stubs by type (old way)
@@ -66,7 +67,7 @@ class Context:
 
         print("Python:")
         for p in self.py:
-            print("\t"+p + " : "+self.py[p])
+            print("\t"+p + " : "+str(self.py[p].signature))
 
         print("C++:")
         for c in self.global_state["CPP"]:
@@ -130,20 +131,10 @@ class Context:
         else:
             n_name = name
 
-        ret_object = None
-        # Parse the typestring and build up a pushpush object
-        if(typestr == "exp"):
-            ret_object = stubs.HopFunction(self, func, n_name)
-            self.add_py(n_name, "exp")
-        # if(typestr == "(exp->exp->val)->(val->com)->com"):
-        #     ret_object = lf_exp_exp_val_rf_lf_val_com_rf_com(self,func,n_name)
-        #     self.add_py(n_name, "(exp->exp->val)->(val->com)->com")
-        # if(typestr == "val->com"):
-        #     ret_object = val_com(self,func,n_name)
-        #     self.add_py(n_name, "val_com")
-        else:
-            print("error: Unable to create pushpush object "+n_name)
-        return ret_object
+        signature = ht.parse(typestr)
+        hopFunc = stubs.HopFunction(self, signature, func, n_name)
+        self.add_py(hopFunc)
+        return hopFunc
 
     # ---- Debugging -----
     def print(self,size=16):
