@@ -1,7 +1,7 @@
 {
     "hardware": {
         "a": {
-            "type": "b32",
+            "type": "() -> b32",
             "base": 1073741824,
             "cep_offset": 8
         }

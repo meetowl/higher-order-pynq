@@ -29,15 +29,19 @@ class Stub:
 
 # Higher-Order Function Stub
 class HopFunction:
-    def __init__(self, context, func, name=None) -> None:
+    def __init__(self, context, signature, func, name=None) -> None:
+        # Function definition
+        self.signature = signature
+        self.function = func
         if name is None:
             (filename,line_number,function_name,text)=traceback.extract_stack()[-2]
             self.name = text[:text.find('=')].strip()
         else:
             self.name = name
+
+        # Plumbing
         self.cep = context.add(self.name,1)
         self.context = context
-        self.function = func
         multiprocessing.Process(target=self.listen).start()
 
 
