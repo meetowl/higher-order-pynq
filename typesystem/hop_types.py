@@ -18,12 +18,17 @@ class Base:
 class Tuple:
     def __init__(self, elementList):
         self.elements = elementList
+        self.empty = len(elementList) == 0
 
     def __str__(self):
-        out = '('
-        for e in self.elements:
-            out += f'{str(e)},'
-        return out[:-1] + ')'
+        if self.empty:
+            out = '()'
+        else:
+            out = '('
+            for e in self.elements:
+                out += f'{str(e)},'
+            out[:-1] + ')'
+        return out
 
 class Function:
     def __init__(self, typein, typeout):
