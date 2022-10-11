@@ -3,7 +3,15 @@ import typesystem.typeparser as typeparser
 import ply.lex as lex
 import ply.yacc as yacc
 
-class Base:
+class Type:
+    def is_function(self):
+        return False
+    def is_tuple(self):
+        return False
+    def is_base(self):
+        return False
+
+class Base(Type):
     def __init__(self, width=32):
         self.width = width
 
@@ -15,10 +23,14 @@ class Base:
     def __str__(self):
         return f'b{self.width}'
 
-class Tuple:
+    def is_base(self):
+        return True
+
+class Tuple(Type):
     def __init__(self, elementList):
         self.elements = elementList
-        self.empty = len(elementList) == 0
+        self.arity = len(elementList)
+        self.empty = self.arity == 0
 
     def __str__(self):
         if self.empty:
@@ -27,16 +39,23 @@ class Tuple:
             out = '('
             for e in self.elements:
                 out += f'{str(e)},'
-            out[:-1] + ')'
+            out = out[:-1] + ')'
         return out
 
-class Function:
+    def is_tuple(self):
+        return True
+
+class Function(Type):
     def __init__(self, typein, typeout):
         self.typein = typein
         self.typeout = typeout
 
     def __str__(self):
         return f'{str(self.typein)} -> {str(self.typeout)}'
+
+    def is_function(self):
+        return True
+
 
 def parse(typestr):
     lexer = lex.lex(module = typelexer, debug = False)

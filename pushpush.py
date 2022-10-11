@@ -14,7 +14,7 @@ from pynq import MMIO
 from pynq import Overlay
 
 # Local imports
-import stubs
+import newstub as stubs
 import typesystem.hop_types as ht
 
 class Context:
@@ -37,14 +37,14 @@ class Context:
         self.objects = dict()
 
         self.functions = dict()
-        self.functions['hardware'] = dict
-        self.functions['python'] = dict
-        self.functions['cpp'] = dict
+        self.functions['hardware'] = dict()
+        self.functions['python'] = dict()
+        self.functions['cpp'] = dict()
 
         self.populate_stubs(self.overlay_metadata_name)
 
     def add_py(self, hopFunc):
-        self.py[hopFunc.name] = hopFunc
+        self.functions['python'][hopFunc.name] = hopFunc
 
     def populate_stubs(self, overlay_metadata_file)->None:
         # Load the metadata
@@ -52,35 +52,28 @@ class Context:
         with open(overlay_metadata_file, "r") as f:
             overlay_metadata = json.load(f)
 
-        # Construct the current context stubs
-        for h in self.global_state['hardware'].keys():
-            base = self.global_state['hardware'][h]['base']
-            self.hw[h] = stubs.stub_dict[h](self, base, h)
+        # # Construct the current context stubs
+        # for h in self.global_state['hardware'].keys():
+        #     base = self.global_state['hardware'][h]['base']
+        #     self.hw[h] = stubs.stub_dict[h](self, base, h)
 
         for funcType in overlay_metadata.keys():
             if funcType in self.functions.keys():
                 for funcName in overlay_metadata[funcType].keys():
-                    funcMeta = self.overlay_metadata[funcType][funcName]
-                    self.functions[funcType][funcName] = Stub.from_meta_dict(funcType, funcName, funcMeta)
+                    funcMeta = overlay_metadata[funcType][funcName]
+                    self.functions[funcType][funcName] = stubs.Stub.from_meta_dict(self, funcType, funcName, funcMeta)
 
     def print_all_objects(self)->None:
-        print("Hardware:")
-        for h in self.global_state["hardware"]:
-            print("\t"+h + " : "+self.global_state["hardware"][h]["type"])
-
-        print("Python:")
-        for p in self.py:
-            print("\t"+p + " : "+str(self.py[p].signature))
-
-        print("C++:")
-        for c in self.global_state["CPP"]:
-            print("\t"+c+" : "+self.global_state["CPP"][c]["type"])
+        for objType in self.functions.keys():
+            print(f'{objType}:')
+            for objName in self.functions[objType].keys():
+                print(f'\t{objName} : {str(self.functions[objType][objName].signature)}')
         return
 
 
 
 
-    def add(self, name, slots) -> None:
+    def add(self, name, slots):
         """
         Adds a named pushpush object to the endpoint space
         using a number of slots. Each slot is 4 bytes.
@@ -131,7 +124,7 @@ class Context:
             n_name = name
 
         signature = ht.parse(typestr)
-        hopFunc = stubs.HopFunction(self, signature, func, n_name)
+        hopFunc = stubs.PythonStub(self, signature, func, n_name)
         self.add_py(hopFunc)
         return hopFunc
 
