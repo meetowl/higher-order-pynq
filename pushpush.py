@@ -52,11 +52,6 @@ class Context:
         with open(overlay_metadata_file, "r") as f:
             overlay_metadata = json.load(f)
 
-        # # Construct the current context stubs
-        # for h in self.global_state['hardware'].keys():
-        #     base = self.global_state['hardware'][h]['base']
-        #     self.hw[h] = stubs.stub_dict[h](self, base, h)
-
         for funcType in overlay_metadata.keys():
             if funcType in self.functions.keys():
                 for funcName in overlay_metadata[funcType].keys():
@@ -69,9 +64,6 @@ class Context:
             for objName in self.functions[objType].keys():
                 print(f'\t{objName} : {str(self.functions[objType][objName].signature)}')
         return
-
-
-
 
     def add(self, name, slots):
         """
@@ -109,7 +101,8 @@ class Context:
         """
         Return the value for an offset in the endpoint space
         """
-        self.mem.invalidate; self.mem.flush;
+        self.mem.invalidate
+        self.mem.flush
         offset = math.ceil((address - self.mem.physical_address)/4)
         return self.mem[offset]
 

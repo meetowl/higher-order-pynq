@@ -1,7 +1,7 @@
 {
     "hardware": {
         "add": {
-            "signature": "(b4,b4)->b4",
+            "signature": "(b32,b32)->b32",
             "base": 1073741824,
             "cep_offset": 8,
             "arg1_addr": 8,

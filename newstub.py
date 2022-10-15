@@ -20,7 +20,6 @@ class Stub:
         # TODO: Understand & replace this line
         self.rep_addr = context.add(name, 2)
 
-#    @classmethod
     def from_meta_dict(context, funcType, name, meta):
         stubDict = {
             "hardware" : HardwareStub,
@@ -54,20 +53,15 @@ class HardwareStub(Stub):
 
         self.ret_addr = meta['ret_addr']
 
-    def __call__(self, a, b):
-        # Assign anonymous prefix to functions if no name given
-        a_mod = a
-        letters = string.ascii_lowercase
-        if isinstance(a, types.FunctionType) :
-            anon_a_name = "anon_"+''.join(random.choice(letters) for i in range(10))
-            a_mod = PythonStub(self.context, a, anon_a_name)
-            self.context.add_py(anon_a_name, self.signature)
+    def __call__(self, *args):
+        # Argument checking
+        if len(args) != self.arity:
+            raise RuntimeError(f'error: {self.name} expects {self.arity} arguments but {len(args)} given.')
 
-        b_mod = b
-        if isinstance(b, types.FunctionType) :
-            anon_b_name = "anon_"+''.join(random.choice(letters) for i in range(10))
-            b_mod = PythonStub(self.context, b, anon_b_name)
-            self.context.add_py(anon_b_name, self.signature)
+        # Type checking (very naive)
+        argTuple = ht.Tuple.from_objects(args)
+        if not self.signature.typein.typeMatch(argTuple):
+            raise RuntimeError(f'error: expected type {self.signature.typein} does not match given {argTuple}')
 
         # Control Register:
         ## AP_START = 1, AUTO_RESTART = 1
@@ -76,12 +70,10 @@ class HardwareStub(Stub):
         ## regspace[1]  = GLOBAL_MEMORY_ADDR + &regspace[0]
         self.mmio.write(self.regspace_addr + 1*0x4, self.base_addr + 0x40)
 
-
-        # TODO: Ideally automate argument generation
-        ## regspace[8]  = caller endpoint address of first argument
-        self.mmio.write(0x40 + self.arg_addrs[0] * 0x4, a.cep_offset)
-        ## regspace[9]  = caller endpoint address of second argument
-        self.mmio.write(0x40 + self.arg_addrs[1] * 0x4, b.cep_offset)
+        # Argument Loop
+        for i in range(self.signature.typein.arity):
+            ## regspace[n]  = caller endpoint address of argument
+            self.mmio.write(0x40 + self.arg_addrs[i] * 0x4, args[i].cep_offset)
 
         ## regspace[10] = return endpoint address
         self.mmio.write(0x40 + self.ret_addr * 0x4, self.rep_addr)
