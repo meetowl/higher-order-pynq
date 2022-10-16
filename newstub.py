@@ -7,14 +7,14 @@ import random
 from pynq import MMIO
 import typesystem.hop_types as ht
 
+# config/debug space
 REGSPACE_ADDR = 0x40
 
 class Stub:
-    def __init__(self, context, name, signature, base_addr, cep_offset):
+    def __init__(self, context, name, signature, cep_offset):
         self.context = context
         self.name = name
         self.signature = signature
-        self.base_addr = base_addr
         self.regspace_addr = REGSPACE_ADDR
         self.cep_offset = cep_offset
         # TODO: Understand & replace this line
@@ -32,10 +32,10 @@ class Stub:
 class HardwareStub(Stub):
     def __init__(self, context, name, meta):
         signature = ht.parse(meta['signature'])
-        base_addr = meta['base']
+        self.base_addr = meta['base']
         cep_offset = meta['cep_offset']
-        self.mmio = MMIO(base_addr, 65536)
-        super().__init__(context, name, signature, base_addr, cep_offset)
+        self.mmio = MMIO(self.base_addr, 65536)
+        super().__init__(context, name, signature, cep_offset)
 
         if signature.is_function():
             self._createFunctionStub(meta)
@@ -59,61 +59,74 @@ class HardwareStub(Stub):
             raise RuntimeError(f'error: {self.name} expects {self.arity} arguments but {len(args)} given.')
 
         # Type checking (very naive)
+        # TODO: rewrite after reading type theory
         argTuple = ht.Tuple.from_objects(args)
         if not self.signature.typein.typeMatch(argTuple):
             raise RuntimeError(f'error: expected type {self.signature.typein} does not match given {argTuple}')
 
-        # Control Register:
-        ## AP_START = 1, AUTO_RESTART = 1
+        # Evaluate arguments (very naive)
+        # TODO: Read about how Haskell evaluates
+        evalArgs = list()
+        for i in range(self.signature.typein.arity):
+            if argTuple.elements[i].is_function():
+                evalArgs.append(args[i]())
+            else:
+                evalArgs.append(args[i])
+
+        # Control Register: AP_START = 1, AUTO_RESTART = 1
         self.mmio.write(0x0, 1 | (1 << 7))
-        # Regspace:
+
+        # Initialise Argument Space::
         ## regspace[1]  = GLOBAL_MEMORY_ADDR + &regspace[0]
         self.mmio.write(self.regspace_addr + 1*0x4, self.base_addr + 0x40)
-
-        # Argument Loop
+        ## Insert the argument addresses (where the argument loop will insert them) into regspace
         for i in range(self.signature.typein.arity):
             ## regspace[n]  = caller endpoint address of argument
             self.mmio.write(0x40 + self.arg_addrs[i] * 0x4, args[i].cep_offset)
-
-        ## regspace[10] = return endpoint address
+        ## Provide the return address (if(regspace[REP_addr] != 0) doesn't run unless this runs)
+        ## regspace[n] = return endpoint address
         self.mmio.write(0x40 + self.ret_addr * 0x4, self.rep_addr)
+
+        # Argument Loop - Call the arguments and insert their results
+        for i in range(self.signature.typein.arity):
+            ## Leaving this here just in case
+            # count = 0
+            # while self.context.value(args[i].cep_offset) == 0:
+            #     count += 1
+            #     time.sleep(1)
+
+            ## Initiate our own MMIO interface that points to this argument's argument space
+            mmio = MMIO(self.context.value(args[i].cep_offset), 65536)
+            ## Write the result to argument space + 0
+            mmio.write(0, evalArgs[i])
+            ## Write the result status (not zero = success) to argument space + 1
+            mmio.write(4, 1)
+
+            # ## Clears the above values
+            # self.context.clear(args[i].cep_offset)
+
+
         self.listen()
         return self.res
 
     def listen(self):
         count = 0
         while self.context.value(self.rep_addr+4) == 0:
+            print(f'[{time.time() - start_time}] hw loop: while self.context.value({self.rep_addr} + 4) = {self.context.value(self.rep_addr + 4)}')
             count = count + 1
+            time.sleep(1)
         self.context.clear(self.rep_addr+4)
         self.res = self.context.value(self.rep_addr)
 
-# TODO: Replace with a child of stub
-class PythonStub:
-    def __init__(self, context, signature, func, name=None) -> None:
+
+class PythonStub(Stub):
+    def __init__(self, context, signature, func, name) -> None:
         # Function definition
+        self.context = context
         self.signature = signature
         self.function = func
-        if name is None:
-            (filename,line_number,function_name,text)=traceback.extract_stack()[-2]
-            self.name = text[:text.find('=')].strip()
-        else:
-            self.name = name
-
-        # Plumbing
-        self.cep_offset = context.add(self.name,1)
-        self.context = context
-        multiprocessing.Process(target=self.listen).start()
-
-    def listen(self) -> None:
-        while True:
-            count = 0
-            while self.context.value(self.cep_offset) == 0:
-                count = count + 1
-            addr = self.context.value(self.cep_offset)
-            mmio = MMIO(addr, 65536)
-            mmio.write(0, self.function())
-            mmio.write(4, 1)
-            self.context.clear(self.cep_offset)
+        self.name = name
+        super().__init__(context, name, signature, context.add(self.name,1))
 
     def __call__(self)->int:
         return self.function()

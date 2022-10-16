@@ -33,6 +33,7 @@ class Context:
 
         self.size = size
         self.mem = allocate(shape=(self.size,), dtype='u4')
+
         self.top = 0
         self.objects = dict()
 
@@ -42,6 +43,19 @@ class Context:
         self.functions['cpp'] = dict()
 
         self.populate_stubs(self.overlay_metadata_name)
+
+
+    def watch(self):
+        '''Function to watch the allocated range for a certain range'''
+        n = 6
+        w = [i for i in range(0, n)]
+        old = [-1 for i in range(n)]
+        while True:
+            for i in range(len(w)):
+                cap = self.mem[i]
+                if cap != old[i]:
+                    old[i] = cap
+                    print(f'mem[{i}]: {cap}')
 
     def add_py(self, hopFunc):
         self.functions['python'][hopFunc.name] = hopFunc
