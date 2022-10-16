@@ -1,4 +1,4 @@
-
+import time
 import multiprocessing
 import string
 import types
@@ -6,7 +6,7 @@ import traceback
 import random
 from pynq import MMIO
 import typesystem.hop_types as ht
-
+start_time = time.time()
 # config/debug space
 REGSPACE_ADDR = 0x40
 
@@ -68,10 +68,7 @@ class HardwareStub(Stub):
         # TODO: Read about how Haskell evaluates
         evalArgs = list()
         for i in range(self.signature.typein.arity):
-            if argTuple.elements[i].is_function():
-                evalArgs.append(args[i]())
-            else:
-                evalArgs.append(args[i])
+            evalArgs.append(args[i]())
 
         # Control Register: AP_START = 1, AUTO_RESTART = 1
         self.mmio.write(0x0, 1 | (1 << 7))
@@ -90,10 +87,11 @@ class HardwareStub(Stub):
         # Argument Loop - Call the arguments and insert their results
         for i in range(self.signature.typein.arity):
             ## Leaving this here just in case
-            # count = 0
-            # while self.context.value(args[i].cep_offset) == 0:
-            #     count += 1
-            #     time.sleep(1)
+            count = 0
+            while self.context.value(args[i].cep_offset) == 0:
+                # I want to see if this ever trips
+                print(f'[{time.time() - start_time}] BEING HELD IN ARG LOOP WITH VAL:  {self.context.value(args[i].cep_offset)}')
+                count += 1
 
             ## Initiate our own MMIO interface that points to this argument's argument space
             mmio = MMIO(self.context.value(args[i].cep_offset), 65536)
@@ -112,24 +110,26 @@ class HardwareStub(Stub):
     def listen(self):
         count = 0
         while self.context.value(self.rep_addr+4) == 0:
-            print(f'[{time.time() - start_time}] hw loop: while self.context.value({self.rep_addr} + 4) = {self.context.value(self.rep_addr + 4)}')
+            # I want to see if this ever trips
+            print(f'[{time.time() - start_time}] BEING HELD IN LISTEN LOOP WITH VAL: {self.context.value(args[i].cep_offset)}')
             count = count + 1
-            time.sleep(1)
         self.context.clear(self.rep_addr+4)
         self.res = self.context.value(self.rep_addr)
 
 
 class PythonStub(Stub):
-    def __init__(self, context, signature, func, name) -> None:
+    def __init__(self, context, signature, obj, name) -> None:
         # Function definition
         self.context = context
         self.signature = signature
-        self.function = func
+
         self.name = name
+        if signature.is_function():
+            self.function = obj
+        else:
+            self.function = lambda : obj
+
         super().__init__(context, name, signature, context.add(self.name,1))
 
-    def __call__(self)->int:
+    def __call__(self, *args)->int:
         return self.function()
-
-    def cep_offset(self) -> int:
-        return self.cep_offset
