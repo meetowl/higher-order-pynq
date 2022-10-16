@@ -4,6 +4,7 @@ import string
 import types
 import traceback
 import random
+import numpy
 from pynq import MMIO
 import typesystem.hop_types as ht
 start_time = time.time()
@@ -51,7 +52,17 @@ class HardwareStub(Stub):
 
         self.ret_addr = meta['ret_addr']
 
+    def __transformToStub(self, args):
+        stubArgs = list()
+        for a in args:
+            aStub = a
+            if not isinstance(a, Stub):
+                aStub = stubsFromVar(self.context, a)
+            stubArgs.append(aStub)
+        return stubArgs
+
     def __call__(self, *args):
+        args = self.__transformToStub(args)
         # Argument checking
         if len(args) != self.arity:
             raise RuntimeError(f'error: {self.name} expects {self.arity} arguments but {len(args)} given.')
@@ -138,3 +149,19 @@ class PythonStub(Stub):
     def __str__(self):
         # This will cause problems
         return str(self.function())
+
+def stubsFromVar(context, var):
+    t = type(var)
+    # Basic variable case
+    if t == int:
+        sig = ht.Base(var.bit_length())
+        ps = PythonStub(context, sig, var, f'num_{var}')
+        return ps
+
+    # Numpy Case
+    if t.__module__ == numpy.__name__ and numpy.isscalar(var):
+        sig = ht.Base(numpy.intc(var).itemsize * 8)
+        ps = PythonStub(context, sig, var, f'num_{var}')
+        return ps
+
+    raise NotImplementedError(f'type {t} not yet implemented')
