@@ -11,14 +11,11 @@ start_time = time.time()
 REGSPACE_ADDR = 0x40
 
 class Stub:
-    def __init__(self, context, name, signature, cep_offset):
+    def __init__(self, context, name, signature):
         self.context = context
         self.name = name
         self.signature = signature
-        self.regspace_addr = REGSPACE_ADDR
-        self.cep_offset = cep_offset
-        # TODO: Understand & replace this line
-        self.rep_addr = context.add(name, 2)
+        self.argspace_addr = context.add(name, 2)
 
     def from_meta_dict(context, funcType, name, meta):
         stubDict = {
@@ -33,9 +30,10 @@ class HardwareStub(Stub):
     def __init__(self, context, name, meta):
         signature = ht.parse(meta['signature'])
         self.base_addr = meta['base']
-        cep_offset = meta['cep_offset']
+        self.regspace_offset = REGSPACE_ADDR
+        self.regspace_addr = self.base_addr + self.regspace_offset
         self.mmio = MMIO(self.base_addr, 65536)
-        super().__init__(context, name, signature, cep_offset)
+        super().__init__(context, name, signature)
 
         if signature.is_function():
             self._createFunctionStub(meta)
@@ -70,38 +68,41 @@ class HardwareStub(Stub):
         for i in range(self.signature.typein.arity):
             evalArgs.append(args[i]())
 
+
         # Control Register: AP_START = 1, AUTO_RESTART = 1
         self.mmio.write(0x0, 1 | (1 << 7))
 
         # Initialise Argument Space::
         ## regspace[1]  = GLOBAL_MEMORY_ADDR + &regspace[0]
-        self.mmio.write(self.regspace_addr + 1*0x4, self.base_addr + 0x40)
+        self.mmio.write(self.regspace_offset + 1*0x4, self.base_addr + 0x40)
         ## Insert the argument addresses (where the argument loop will insert them) into regspace
         for i in range(self.signature.typein.arity):
-            ## regspace[n]  = caller endpoint address of argument
-            self.mmio.write(0x40 + self.arg_addrs[i] * 0x4, args[i].cep_offset)
-        ## Provide the return address (if(regspace[REP_addr] != 0) doesn't run unless this runs)
+            ## regspace[n]  = where to take the argument from
+            self.mmio.write(self.regspace_offset + self.arg_addrs[i] * 0x4, args[i].argspace_addr)
+        ## Provide the return address (if(regspace[return offset] != 0) doesn't run unless this runs)
         ## regspace[n] = return endpoint address
-        self.mmio.write(0x40 + self.ret_addr * 0x4, self.rep_addr)
+        self.mmio.write(self.regspace_offset + self.ret_addr * 0x4, self.argspace_addr)
 
         # Argument Loop - Call the arguments and insert their results
         for i in range(self.signature.typein.arity):
             ## Leaving this here just in case
             count = 0
-            while self.context.value(args[i].cep_offset) == 0:
+            while self.context.value(args[i].argspace_addr) == 0:
                 # I want to see if this ever trips
-                print(f'[{time.time() - start_time}] BEING HELD IN ARG LOOP WITH VAL:  {self.context.value(args[i].cep_offset)}')
+                print(f'[{time.time() - start_time}] BEING HELD IN ARG LOOP')
+                time.sleep(1)
                 count += 1
 
             ## Initiate our own MMIO interface that points to this argument's argument space
-            mmio = MMIO(self.context.value(args[i].cep_offset), 65536)
+            mmio = MMIO(self.context.value(args[i].argspace_addr), 65536)
             ## Write the result to argument space + 0
+            print(evalArgs)
             mmio.write(0, evalArgs[i])
             ## Write the result status (not zero = success) to argument space + 1
             mmio.write(4, 1)
 
-            # ## Clears the above values
-            # self.context.clear(args[i].cep_offset)
+            ## Clears the above values
+            self.context.clear(args[i].argspace_addr)
 
 
         self.listen()
@@ -109,12 +110,12 @@ class HardwareStub(Stub):
 
     def listen(self):
         count = 0
-        while self.context.value(self.rep_addr+4) == 0:
+        while self.context.value(self.argspace_addr+4) == 0:
             # I want to see if this ever trips
-            print(f'[{time.time() - start_time}] BEING HELD IN LISTEN LOOP WITH VAL: {self.context.value(args[i].cep_offset)}')
+            print(f'[{time.time() - start_time}] BEING HELD IN LISTEN LOOP WITH VAL: {self.context.value(self.argspace_addr+4)}')
             count = count + 1
-        self.context.clear(self.rep_addr+4)
-        self.res = self.context.value(self.rep_addr)
+        self.context.clear(self.argspace_addr+4)
+        self.res = self.context.value(self.argspace_addr)
 
 
 class PythonStub(Stub):
@@ -129,7 +130,7 @@ class PythonStub(Stub):
         else:
             self.function = lambda : obj
 
-        super().__init__(context, name, signature, context.add(self.name,1))
+        super().__init__(context, name, signature)
 
     def __call__(self, *args)->int:
         return self.function()
