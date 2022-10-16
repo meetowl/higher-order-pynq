@@ -139,3 +139,8 @@ class Context:
     def print(self,size=16):
         for i in range(0,size):
             print("["+str(i)+"] = "+str(self.mem[i]))
+
+    def reloadModules():
+        import importlib as il
+        il.reload(stubs)
+        il.reload(ht)
