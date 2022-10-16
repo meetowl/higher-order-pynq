@@ -66,7 +66,8 @@ class HardwareStub(Stub):
         # TODO: Read about how Haskell evaluates
         evalArgs = list()
         for i in range(self.signature.typein.arity):
-            evalArgs.append(args[i]())
+            # We cast to int because things tend to return things like 'numpy.uint32'
+            evalArgs.append(int(args[i]()))
 
 
         # Control Register: AP_START = 1, AUTO_RESTART = 1
@@ -96,7 +97,6 @@ class HardwareStub(Stub):
             ## Initiate our own MMIO interface that points to this argument's argument space
             mmio = MMIO(self.context.value(args[i].argspace_addr), 65536)
             ## Write the result to argument space + 0
-            print(evalArgs)
             mmio.write(0, evalArgs[i])
             ## Write the result status (not zero = success) to argument space + 1
             mmio.write(4, 1)
@@ -134,3 +134,7 @@ class PythonStub(Stub):
 
     def __call__(self, *args)->int:
         return self.function()
+
+    def __str__(self):
+        # This will cause problems
+        return str(self.function())
