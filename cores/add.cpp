@@ -36,7 +36,8 @@ void adder_ppo(volatile int *m_itf, volatile uint32_t regspace[16]){
 	#pragma HLS INTERFACE s_axilite port=regspace bundle=cep
 	#pragma HLS INTERFACE s_axilite port=return bundle=cep
 
-	#pragma HLS INTERFACE mode=m_axi depth=1 port=m_itf bundle=mst offset=off
+	// Removed offset=off
+	#pragma HLS INTERFACE mode=m_axi depth=1 port=m_itf bundle=mst
 
 	regspace[STATUS] = IDLE;
 	regspace[SIGNATURE] = 22224;
