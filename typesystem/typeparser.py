@@ -6,6 +6,7 @@ from typesystem.typelexer import tokens
 #   t  ::= ( )
 #        | Base n
 #        | ( tu )
+#        | [ t ]
 #        | t -> t
 
 #   tu ::= t
@@ -25,6 +26,10 @@ def p_t_3(p):
     p[0] = ht.Tuple(p[2])
 
 def p_t_4(p):
+    't : LBRACK t RBRACK'
+    p[0] = ht.List(p[2])
+
+def p_t_5(p):
     't : t ARROW t'
     p[0] = ht.Function(p[1], p[3])
 

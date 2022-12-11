@@ -10,6 +10,8 @@ class Type:
         return False
     def is_base(self):
         return False
+    def is_list(self):
+        return False
     def __ne__(self, other):
         return not (self == other)
     def __eq__(self, other):
@@ -49,7 +51,7 @@ class Base(Type):
         return True
 
     def __eq__(self, other):
-        return other.is_base() and self.width >= other.width
+        return other.is_base() and self.width == other.width
 
 class Tuple(Type):
     def __init__(self, elementList):
@@ -105,6 +107,16 @@ class Function(Type):
 
     def __eq__(self, other):
         return other.is_function() and self.typein != other.typein and self.typeout != other.typeout
+
+class List(Type):
+    def __init__(self, listType):
+        self.listType = listType
+    def __str__(self):
+        return f'[{str(self.listType)}]'
+    def is_list(self):
+        return True
+    def __eq__(self, other):
+        return other.is_list() and self.listType == other.listType
 
 def parse(typestr):
     lexer = lex.lex(module = typelexer, debug = False)

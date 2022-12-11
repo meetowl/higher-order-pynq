@@ -3,6 +3,8 @@ tokens = (
     'LPAREN',
     'RPAREN',
     'COMMA',
+    'LBRACK',
+    'RBRACK',
     'ARROW'
 )
 
@@ -10,6 +12,8 @@ t_LPAREN = r'\('
 t_RPAREN = r'\)'
 t_COMMA = r','
 t_ARROW = r'->'
+t_LBRACK = r'\['
+t_RBRACK = r'\]'
 t_ignore = ' \t'
 
 def t_BASE(t):
