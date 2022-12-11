@@ -2,7 +2,7 @@ import typesystem.hop_types as ht
 from typesystem.typelexer import tokens
 
 # Type Parser
-# BNF (V4):
+# BNF (V5):
 #   t  ::= ( )
 #        | Base n
 #        | ( tu )
@@ -11,6 +11,10 @@ from typesystem.typelexer import tokens
 
 #   tu ::= t
 #        | t, tu
+
+precedence = (
+    ('left', 'ARROW'),
+)
 
 def p_t_1(p):
     't : LPAREN RPAREN'
