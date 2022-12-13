@@ -19,21 +19,34 @@ class Type:
 
     # Currently only allow to typecheck tuples
     # Please re-implement this after you read some theory
-    def typeMatch(self, sigGiven):
-        if self.is_tuple():
-            if not sigGiven.is_tuple():
-                return False
-        else:
-            return False
+    def typeMatch(var):
+        if (isinstance(var, Type)):
+            return var
 
-        for i in range(self.arity):
-            # Only checks one eval level down
-            if self.elements[i].is_base() and sigGiven.elements[i].is_function():
-                if self.elements[i] != sigGiven.elements[i].typeout:
-                    return False
-            elif self.elements[i] != sigGiven.elements[i]:
-                return False
-        return True
+        # Currently we only think with int
+        # TODO: convert to numpy types
+        if isinstance(var, int):
+            return Base.for_num(var)
+
+        if isinstance(var, tuple):
+            tupList = []
+            for e in var:
+                tupList.append(Type.typeMatch(e))
+            return Tuple(tupList)
+
+        # Just assume list has one type
+        # TODO enforce this with numpy
+        if isinstance(var, list):
+            listType = Type.typeMatch(var.pop())
+            for e in var:
+                eType = Type.typeMatch(e)
+                if listType != eType:
+                    raise TypeError(f'All types must be the same, but found both {listType} ' +
+                                    f'and {eType} in list!')
+            return List(listType)
+
+        raise NotImplementedError("Type given not implemented.")
+
 
 class Base(Type):
     def __init__(self, width=32):
@@ -68,7 +81,6 @@ class Tuple(Type):
             elementList.append(o.signature)
 
         return cls(elementList)
-
 
     def __str__(self):
         if self.empty:
