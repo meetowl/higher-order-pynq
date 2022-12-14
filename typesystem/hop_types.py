@@ -17,16 +17,20 @@ class Type:
     def __eq__(self, other):
         return NotImplemented
 
-    # Currently only allow to typecheck tuples
-    # Please re-implement this after you read some theory
     def typeMatch(var):
+        'Convert variable to the correspoinding HoP Type'
         if (isinstance(var, Type)):
             return var
 
         # Currently we only think with int
-        # TODO: convert to numpy types
+        # TODO: enforce numpy types
         if isinstance(var, int):
             return Base.for_num(var)
+
+        # Numpy Case
+        if type(var).__module__ == numpy.__name__:
+            if numpy.isscalar(var):
+                return Base(var.itemsize * 8)
 
         if isinstance(var, tuple):
             tupList = []
