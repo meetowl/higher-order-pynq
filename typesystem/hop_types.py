@@ -2,6 +2,7 @@ import typesystem.typelexer as typelexer
 import typesystem.typeparser as typeparser
 import ply.lex as lex
 import ply.yacc as yacc
+import numpy
 
 class Type:
     def is_function(self):
@@ -49,7 +50,10 @@ class Type:
                                     f'and {eType} in list!')
             return List(listType)
 
-        raise NotImplementedError("Type given not implemented.")
+        raise NotImplementedError(f'Type {type(var)} not implemented in HoP.')
+
+    def typeCheck(argStubs):
+        print(argStubs)
 
 
 class Base(Type):

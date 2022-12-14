@@ -70,7 +70,11 @@ class Context:
             if funcType in self.functions.keys():
                 for funcName in overlay_metadata[funcType].keys():
                     funcMeta = overlay_metadata[funcType][funcName]
-                    self.functions[funcType][funcName] = stubs.Stub.from_meta_dict(self, funcType, funcName, funcMeta)
+                    self.functions[funcType][funcName] = stubs.Stub.from_meta_dict(self,
+                                                                                   funcType,
+                                                                                   funcName,
+                                                                                   funcMeta)
+
 
     def print_all_objects(self)->None:
         for objType in self.functions.keys():

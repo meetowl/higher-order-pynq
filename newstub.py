@@ -37,9 +37,9 @@ class HardwareStub(Stub):
         super().__init__(context, name, signature)
 
         if signature.is_function():
-            self._createFunctionStub(meta)
+            self.__createFunctionStub(meta)
 
-    def _createFunctionStub(self, meta):
+    def __createFunctionStub(self, meta):
         self.regspace_addr = REGSPACE_ADDR
         if self.signature.typein.is_tuple():
             self.arity = self.signature.typein.arity
@@ -57,21 +57,19 @@ class HardwareStub(Stub):
         for a in args:
             aStub = a
             if not isinstance(a, Stub):
-                aStub = stubsFromVar(self.context, a)
+                aStub = __stubFromVar(a)
             stubArgs.append(aStub)
         return stubArgs
 
+    def __stubFromVar(self, var):
+        sig = ht.Type.typeMatch(var)
+        ps = PythonStub(self.context, sig, var, f'num_{var}')
+
+        return (ps, sig)
+
     def __call__(self, *args):
         args = self.__transformToStub(args)
-        # Argument checking
-        if len(args) != self.arity:
-            raise RuntimeError(f'error: {self.name} expects {self.arity} arguments but {len(args)} given.')
-
-        # Type checking (very naive)
-        # TODO: rewrite after reading type theory
-        argTuple = ht.Tuple.from_objects(args)
-        if not self.signature.typein.typeMatch(argTuple):
-            raise RuntimeError(f'error: expected type {self.signature.typein} does not match given {argTuple}')
+        self.signature.typeCheck(args)
 
         # Evaluate arguments (very naive)
         # TODO: Read about how Haskell evaluates
@@ -151,17 +149,7 @@ class PythonStub(Stub):
         return str(self.function())
 
 def stubsFromVar(context, var):
-    t = type(var)
-    # Basic variable case
-    if t == int:
-        sig = ht.Base(var.bit_length())
-        ps = PythonStub(context, sig, var, f'num_{var}')
-        return ps
+    sig = ht.Type.typeMatch(var)
+    ps = PythonStub(context, sig, var, f'num_{var}')
 
-    # Numpy Case
-    if t.__module__ == numpy.__name__ and numpy.isscalar(var):
-        sig = ht.Base(numpy.intc(var).itemsize * 8)
-        ps = PythonStub(context, sig, var, f'num_{var}')
-        return ps
-
-    raise NotImplementedError(f'type {t} not yet implemented')
+    return (ps, sig)
