@@ -57,7 +57,7 @@ class HardwareStub(Stub):
         for a in args:
             aStub = a
             if not isinstance(a, Stub):
-                aStub = __stubFromVar(a)
+                aStub = self.__stubFromVar(a)
             stubArgs.append(aStub)
         return stubArgs
 
@@ -65,19 +65,19 @@ class HardwareStub(Stub):
         sig = ht.Type.typeMatch(var)
         ps = PythonStub(self.context, sig, var, f'num_{var}')
 
-        return (ps, sig)
+        return ps
 
     def __call__(self, *args):
         args = self.__transformToStub(args)
-        self.signature.typeCheck(args)
+        if not self.signature.typeCheck(args):
+            raise TypeError(f'expected \'{self.signature}\'')
 
-        # Evaluate arguments (very naive)
-        # TODO: Read about how Haskell evaluates
-        evalArgs = list()
-        for i in range(self.signature.typein.arity):
-            # We cast to int because things tend to return things like 'numpy.uint32'
-            evalArgs.append(int(args[i]()))
-
+        if self.signature.is_function():
+            # Evaluate arguments
+            evalArgs = list()
+            for i in range(self.signature.typein.arity):
+                # We cast to int because things tend to return things like 'numpy.uint32'
+                evalArgs.append(int(args[i]()))
 
         # Control Register: AP_START = 1, AUTO_RESTART = 1
         self.mmio.write(0x0, 1 | (1 << 7))
@@ -121,6 +121,7 @@ class HardwareStub(Stub):
         count = 0
         while self.context.value(self.argspace_addr+4) == 0:
             # I want to see if this ever trips
+            assert(False)
             print(f'[{time.time() - start_time}] BEING HELD IN LISTEN LOOP WITH VAL: {self.context.value(self.argspace_addr+4)}')
             count = count + 1
         self.context.clear(self.argspace_addr+4)
@@ -147,9 +148,3 @@ class PythonStub(Stub):
     def __str__(self):
         # This will cause problems
         return str(self.function())
-
-def stubsFromVar(context, var):
-    sig = ht.Type.typeMatch(var)
-    ps = PythonStub(context, sig, var, f'num_{var}')
-
-    return (ps, sig)

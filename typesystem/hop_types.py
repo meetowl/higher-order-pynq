@@ -52,8 +52,32 @@ class Type:
 
         raise NotImplementedError(f'Type {type(var)} not implemented in HoP.')
 
-    def typeCheck(argStubs):
-        print(argStubs)
+    def typeCheck(self, argStubs) -> bool:
+        if not self.is_function():
+            return len(argStubs) == 0
+
+        arity = 0
+        typeStack = list()
+        checkStack = list(map(lambda stub: stub.signature, reversed(argStubs)))
+        opTerm = self.typein
+
+        # Build the type stack
+        while opTerm.is_function():
+            typeStack.append(opTerm.typeout)
+            opTerm = opTerm.typein
+        typeStack.append(opTerm)
+
+        while len(typeStack) > 0 and len(checkStack) > 0:
+            a = typeStack.pop()
+            b = checkStack.pop()
+            if not a == b:
+                return False
+
+        if not len(typeStack) + len(checkStack) == 0:
+            return False
+
+        return True
+
 
 
 class Base(Type):
