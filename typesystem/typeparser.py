@@ -12,8 +12,9 @@ from typesystem.typelexer import tokens
 #   tu ::= t
 #        | t, tu
 
+# Enforce right precedence with functions
 precedence = (
-    ('left', 'ARROW'),
+    ('right', 'ARROW'),
 )
 
 def p_t_1(p):
