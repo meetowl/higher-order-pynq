@@ -91,9 +91,10 @@ class Context:
         if self.top + slots >= self.size:
             raise RuntimeError('HoP Context has run out of endpoint space')
 
-        self.objects[name] = self.top
+        object_offset = self.top
+        self.objects[name] = object_offset
         self.top = self.top + slots
-        return self.mem.physical_address + (self.objects[name]*4)
+        return (object_offset, self.mem.physical_address + object_offset * 0x4)
 
     def get_base(self, name) -> int:
         """
@@ -116,15 +117,16 @@ class Context:
         self.mem[offset] = 0
 
     def get(self, offset) -> int:
-        self.mem.invalidate
-        self.mem.flush
+        self.mem.invalidate()
+        self.mem.flush()
+        return self.mem[offset]
 
     def value(self, address) -> int:
         """
         Return the value for an offset in the endpoint space
         """
-        self.mem.invalidate
-        self.mem.flush
+        self.mem.invalidate()
+        self.mem.flush()
         offset = math.ceil((address - self.mem.physical_address)/4)
         return self.mem[offset]
 

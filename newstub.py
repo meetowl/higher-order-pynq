@@ -4,7 +4,7 @@ import string
 import types
 import traceback
 import random
-import numpy
+import numpy as np
 from pynq import MMIO
 import typesystem.hop_types as ht
 start_time = time.time()
@@ -18,7 +18,8 @@ class Stub:
         self.context = context
         self.name = name
         self.signature = signature
-        self.context_addr = context.add(name, 2)
+        (self.result_offset, self.result_addr) = context.add(name, 2)
+        self.result_status_offset = self.result_offset + 1
 
     def from_meta_dict(context, funcType, name, meta):
         stubDict = {
@@ -79,7 +80,7 @@ class HardwareStub(Stub):
 
     def __regspaceWrite(self, offset, data):
         realOffset = offset * 0x4
-        self.hwMemory.write(self.regspace_offset + realOffset, self.data)
+        self.hwMemory.write(self.regspace_offset + realOffset, data)
 
     def __call__(self, *args):
         args = self.__transformToStub(args)
@@ -87,55 +88,63 @@ class HardwareStub(Stub):
             raise TypeError(f'expected \'{self.signature}\'')
 
         # Control Register: AP_START = 1, AUTO_RESTART = 1
-        self.mmio.write(0x0, 1 | (1 << 7))
+        self.hwMemory.write(0x0, 1 | (1 << 7))
+
+        # HARDWARE STATUS: Should be in idle state
 
         # All of the following code fills out the CEP
         # Specify the CEP address
-        self.__regspaceWrite(1, self.base_addr + 0x40)
+        self.__regspaceWrite(1, self.base_addr + self.regspace_offset)
         # If this is a function, it we need to supply where to fetch arguments from
         if self.signature.is_function():
             ## Supply the argument addresses for all
             for i in range(self.signature.arity()):
                 ## Supply argument addresses in CEP
-                self.__regspaceWrite(self.arg_offsets[i], args[i].context_addr)
+                self.__regspaceWrite(self.arg_offsets[i], args[i].result_addr)
+
         ## Specify REP address
-        self.__regspaceWrite(self.ret_offset, self.context_addr)
+        self.__regspaceWrite(self.ret_offset, self.result_addr)
+
+        # HARDWARE STATUS: Should now be waiting for the first argument.
+        # It would have written where it expects the first argument to the result address of the argument
 
         # Evaluate the arguments
         if self.signature.is_function():
             # Argument Loop - Call the arguments and insert their results
             for i in range(self.signature.arity()):
                 ## Leaving this here just in case
-                count = 0
-                while self.context.value(args[i].context_addr) == 0:
-                    # I want to see if this ever trips
-                    print(f'[{time.time() - start_time}] BEING HELD IN ARG LOOP')
+                while self.context.value(args[i].result_addr) == 0:
+                    print(f'[{time.time() - start_time}] Waiting in evaluation loop.')
                     time.sleep(1)
-                    count += 1
 
-                ## Initiate our own MMIO interface that points to this stub's CEP
-                cepIO = MMIO(self.context.value(args[i].context_addr), 65536)
+                # Initiate our own MMIO interface that points to this stub's CEP
+                # The result offset is what the hardware has written to be used as the argument
+                # value address. Look in the previous HARDWARE STATUS.
+                regIO = MMIO(self.context.get(args[i].result_offset), 0x8, debug=True)
                 ## Write the arguments
-                cepIO.write(0, args[i])
-                ## Write the result status (not zero = success) to (&argument + 0x4)
-                cepIO.write(4, 1)
+                regIO.write(0x0, int(args[i]()))
+
+                ## Write the status flag
+                regIO.write(0x4, 1)
 
                 ## Clears the above values (I've yet to figure this part out)
-                self.context.clear(args[i].context_addr)
+                self.context.clear(args[i].result_addr)
+
+        # HARDWARE STATUS: Should now be performing function.
+        # We have filled in all the arguments in the above loop.
 
         # CEP is now filled, we wait until HW has filled REP
         self.__listen()
         return self.res
 
     def __listen(self):
-        count = 0
-        while self.context.get(4) == 0:
-            # I want to see if this ever trips
-            assert(False)
-            print(f'[{time.time() - start_time}] BEING HELD IN LISTEN LOOP WITH VAL: {self.context.get(4)}')
-            count = count + 1
-        self.context.clear(self.context_addr+4)
-        self.res = self.context.get(0)
+        while self.context.get(self.result_status_offset) != self.base_addr + self.regspace_offset:
+            # Massive sleep for debug
+            print(f'[{time.time() - start_time}] Waiting in listen loop.')
+            time.sleep(1)
+        self.context.clear(self.result_addr+4)
+        self.res = self.context.get(self.result_offset)
+
     # ---- Debugging -----
     def __printRegspace(self, start, stop=None):
         if not stop:
@@ -172,6 +181,11 @@ class VarStub(Stub):
             self.var = var
 
         super().__init__(context, name, signature)
+
+    def __call__(self):
+        return self.var
+
+
 
 class ListStub(Stub):
     def __init__(self, context, signature, l, name=None):
