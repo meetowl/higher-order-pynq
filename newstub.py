@@ -32,22 +32,28 @@ class Stub:
     def stubFromVar(context, var, sig = None, name = None):
         if not sig:
             sig = ht.Type.typeMatch(var)
+
         if sig.is_list():
             ps = ListStub(context, sig, var, name)
         elif sig.is_base() or sig.is_tuple():
             ps = VarStub(context, sig, var, name)
         else:
             raise RuntimeError("Python function arguments not yet implemented")
-            #ps = PythonStub(self.context, sig, var, f'num_{var}')
 
         return ps
+
+    def printContext(self):
+        print(self.signature)
+        self.context.print(self.result_offset, self.result_status_offset+1)
+
+
 
 class HardwareStub(Stub):
     def __init__(self, context, name, meta):
         signature = ht.parse(meta['signature'])
         self.base_addr = meta['base']
         self.regspace_offset = REGSPACE_ADDR
-        self.hwMemory = MMIO(self.base_addr, 65536)
+        self.hwMemory = MMIO(self.base_addr, 65536, debug=True)
         super().__init__(context, name, signature)
 
         if signature.is_function():
@@ -55,7 +61,6 @@ class HardwareStub(Stub):
 
     def __createFunctionStub(self, meta):
         self.regspace_addr = REGSPACE_ADDR
-
         self.arg_offsets = list()
         for i in range(0, self.signature.arity()):
             self.arg_offsets.append(meta['regspace'][f'arg{i + 1}_offset'])
@@ -131,11 +136,17 @@ class HardwareStub(Stub):
             count = count + 1
         self.context.clear(self.context_addr+4)
         self.res = self.context.get(0)
+    # ---- Debugging -----
+    def __printRegspace(self, start, stop=None):
+        if not stop:
+            stop = start + 1
+        regMMIO = MMIO(self.base_addr + self.regspace_offset, 16 * 0x4)
+        for i in range(start, stop):
+            print(f'[{i}] = {regMMIO.read(i*4)}')
 
 # This is currently unused
 class PythonStub(Stub):
     def __init__(self, context, signature, obj, name) -> None:
-
         if signature.is_function():
             self.function = obj
         else:
@@ -155,7 +166,7 @@ class VarStub(Stub):
         if callable(var):
             # Since for the moment we ignore side effects, functions which
             # take no input and give an output might as well be pre-computed.
-            # The type system would see such a function as just a type.
+            # The type system would see such a function as just a variable.
             self.var = var()
         else:
             self.var = var

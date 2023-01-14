@@ -89,7 +89,7 @@ class Context:
         using a number of slots. Each slot is 4 bytes.
         """
         if self.top + slots >= self.size:
-            raise RuntimeError('PyPushPush Context has run out of endpoint space')
+            raise RuntimeError('HoP Context has run out of endpoint space')
 
         self.objects[name] = self.top
         self.top = self.top + slots
@@ -144,9 +144,12 @@ class Context:
         return stub
 
     # ---- Debugging -----
-    def print(self,size=16):
-        for i in range(0,size):
-            print("["+str(i)+"] = "+str(self.mem[i]))
+    def print(self, start, stop=None):
+        if not stop:
+            stop = start + 1
+        print(f'Context {start} - {stop}')
+        for i in range(start, stop):
+            print(f'[{i}] = {self.mem[i]}')
 
     def reloadModules():
         import importlib as il
