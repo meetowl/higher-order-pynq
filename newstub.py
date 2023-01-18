@@ -10,7 +10,7 @@ import typesystem.hop_types as ht
 start_time = time.time()
 # config/debug space
 REGSPACE_ADDR = 0x40
-
+STATUS_OFFSET = 4
 
 
 class Stub:
@@ -50,11 +50,12 @@ class Stub:
 
 
 class HardwareStub(Stub):
-    def __init__(self, context, name, meta):
+    def __init__(self, context, name, meta, debugWrites = False):
         signature = ht.parse(meta['signature'])
         self.base_addr = meta['base']
         self.regspace_offset = REGSPACE_ADDR
-        self.hwMemory = MMIO(self.base_addr, 65536, debug=True)
+        self.hwMemory = MMIO(self.base_addr, 65536, debug=debugWrites)
+        self.debugWrites = debugWrites
         super().__init__(context, name, signature)
 
         if signature.is_function():
@@ -78,8 +79,14 @@ class HardwareStub(Stub):
         return stubArgs
 
 
+    def __printWrite(self, address, data):
+        if self.debugWrites:
+            print(f'[{time.time() - start_time}] {self.name}: write: ' +
+                  f'*({address}) = {data}')
+
     def __regspaceWrite(self, offset, data):
         realOffset = offset * 0x4
+        self.__printWrite(f'{self.hwMemory.base_addr} + {self.regspace_offset} + {realOffset}', data)
         self.hwMemory.write(self.regspace_offset + realOffset, data)
 
     def __call__(self, *args):
@@ -88,6 +95,7 @@ class HardwareStub(Stub):
             raise TypeError(f'expected \'{self.signature}\'')
 
         # Control Register: AP_START = 1, AUTO_RESTART = 1
+        self.__printWrite(self.hwMemory.base_addr, 1 | (1 << 7))
         self.hwMemory.write(0x0, 1 | (1 << 7))
 
         # HARDWARE STATUS: Should be in idle state
@@ -105,7 +113,7 @@ class HardwareStub(Stub):
         ## Specify REP address
         self.__regspaceWrite(self.ret_offset, self.result_addr)
 
-        # HARDWARE STATUS: Should now be waiting for the first argument.
+        # HARDWARE STATUS: Should now be waiting for the first argument if it needs any.
         # It would have written where it expects the first argument to the result address of the argument
 
         # Evaluate the arguments
@@ -115,6 +123,10 @@ class HardwareStub(Stub):
                 ## Leaving this here just in case
                 while self.context.value(args[i].result_addr) == 0:
                     print(f'[{time.time() - start_time}] Waiting in evaluation loop.')
+                    if self.debugWrites:
+                        print(self.context.mem.device_address + self.result_offset)
+                        self.printRegspace(10)
+                        self.context.print(self.result_offset, self.result_offset+2)
                     time.sleep(1)
 
                 # Initiate our own MMIO interface that points to this stub's CEP
@@ -122,36 +134,53 @@ class HardwareStub(Stub):
                 # value address. Look in the previous HARDWARE STATUS.
                 regIO = MMIO(self.context.get(args[i].result_offset), 0x8, debug=True)
                 ## Write the arguments
-                regIO.write(0x0, int(args[i]()))
+                a = int(args[i]())
+                self.__printWrite(regIO.base_addr, a)
+                regIO.write(0x0, a)
 
                 ## Write the status flag
+                self.__printWrite(f'{regIO.base_addr} + 4', 1)
                 regIO.write(0x4, 1)
 
                 ## Clears the above values (I've yet to figure this part out)
-                self.context.clear(args[i].result_addr)
+                self.context.clear(args[i].result_addr + 4)
 
         # HARDWARE STATUS: Should now be performing function.
         # We have filled in all the arguments in the above loop.
 
         # CEP is now filled, we wait until HW has filled REP
         self.__listen()
+        if self.debugWrites:
+            print('-----------------------------------')
+            self.printRegspace(0,16)
+            self.context.print(self.result_offset, self.result_offset+2)
+            print(f'res = {self.res}')
         return self.res
 
     def __listen(self):
-        while self.context.get(self.result_status_offset) != self.base_addr + self.regspace_offset:
+        while self.context.get(self.result_status_offset) == 0:
             # Massive sleep for debug
             print(f'[{time.time() - start_time}] Waiting in listen loop.')
+            if self.debugWrites:
+                print(self.context.mem.device_address + self.result_offset)
+                self.printRegspace(10)
+                self.context.print(self.result_offset, self.result_offset+2)
             time.sleep(1)
-        self.context.clear(self.result_addr+4)
+        self.context.clear(self.result_addr + 4)
         self.res = self.context.get(self.result_offset)
 
     # ---- Debugging -----
-    def __printRegspace(self, start, stop=None):
+    def printRegspace(self, start, stop=None):
         if not stop:
             stop = start + 1
         regMMIO = MMIO(self.base_addr + self.regspace_offset, 16 * 0x4)
+        print(f'{self.name} regspace ({self.hwMemory.base_addr} + '
+              f'{self.regspace_offset} = {self.hwMemory.base_addr + self.regspace_offset}):')
         for i in range(start, stop):
             print(f'[{i}] = {regMMIO.read(i*4)}')
+
+    def printRegStatus(self):
+        self.printRegspace(STATUS_OFFSET)
 
 # This is currently unused
 class PythonStub(Stub):
