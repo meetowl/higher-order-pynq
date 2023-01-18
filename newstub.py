@@ -60,14 +60,14 @@ class HardwareStub(Stub):
 
         if signature.is_function():
             self.__createFunctionStub(meta)
+        self.ret_offset = meta['regspace']['ret_offset']
+
 
     def __createFunctionStub(self, meta):
         self.regspace_addr = REGSPACE_ADDR
         self.arg_offsets = list()
         for i in range(0, self.signature.arity()):
             self.arg_offsets.append(meta['regspace'][f'arg{i + 1}_offset'])
-
-        self.ret_offset = meta['regspace']['ret_offset']
 
     def __transformToStub(self, args):
         stubArgs = list()
@@ -90,9 +90,13 @@ class HardwareStub(Stub):
         self.hwMemory.write(self.regspace_offset + realOffset, data)
 
     def __call__(self, *args):
-        args = self.__transformToStub(args)
-        if not self.signature.typeCheck(args):
-            raise TypeError(f'expected \'{self.signature}\'')
+        if self.signature.is_function():
+            args = self.__transformToStub(args)
+            if not self.signature.typeCheck(args):
+                raise TypeError(f'expected \'{self.signature}\'')
+        else:
+            if len(args) > 0:
+                raise TypeError(f'arguments given to type \'{self.signature}\'')
 
         # Control Register: AP_START = 1, AUTO_RESTART = 1
         self.__printWrite(self.hwMemory.base_addr, 1 | (1 << 7))
