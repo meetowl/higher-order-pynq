@@ -128,6 +128,13 @@ class Function(Type):
     def __eq__(self, other):
         return other.is_function() and self.typein != other.typein and self.typeout != other.typeout
 
+    # See how many arguments are in function chain
+    def arity(self):
+        if not self.typeout.is_function():
+            return 1
+        else:
+            return 1 + self.typeout.arity()
+
     def typeCheck(self, argStubs) -> bool:
         checkStack = list(map(lambda stub: stub.signature, argStubs))
         currTerm = self.typein

@@ -124,7 +124,7 @@ class Context:
         offset = math.ceil((address - self.mem.physical_address)/4)
         return self.mem[offset]
 
-    def register(self, func, typestr, name=None):
+    def register(self, pyobj, typestr, name=None):
         """
         Registers a PushPush software object and gives it a type.
         """
@@ -135,9 +135,9 @@ class Context:
             n_name = name
 
         signature = ht.parse(typestr)
-        hopFunc = stubs.PythonStub(self, signature, func, n_name)
-        self.add_py(hopFunc)
-        return hopFunc
+        stub = stubs.Stub.stubFromVar(self, pyobj, sig=signature, name=n_name)
+        self.add_py(stub)
+        return stub
 
     # ---- Debugging -----
     def print(self,size=16):
