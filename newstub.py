@@ -18,7 +18,7 @@ class Stub:
         self.context = context
         self.name = name
         self.signature = signature
-        self.argspace_addr = context.add(name, 2)
+        self.context_addr = context.add(name, 2)
 
     def from_meta_dict(context, funcType, name, meta):
         stubDict = {
@@ -47,8 +47,7 @@ class HardwareStub(Stub):
         signature = ht.parse(meta['signature'])
         self.base_addr = meta['base']
         self.regspace_offset = REGSPACE_ADDR
-        self.regspace_addr = self.base_addr + self.regspace_offset
-        self.mmio = MMIO(self.base_addr, 65536)
+        self.hwMemory = MMIO(self.base_addr, 65536)
         super().__init__(context, name, signature)
 
         if signature.is_function():
@@ -57,11 +56,11 @@ class HardwareStub(Stub):
     def __createFunctionStub(self, meta):
         self.regspace_addr = REGSPACE_ADDR
 
-        self.arg_addrs = list()
+        self.arg_offsets = list()
         for i in range(0, self.signature.arity()):
-            self.arg_addrs.append(meta[f'arg{i + 1}_addr'])
+            self.arg_offsets.append(meta['regspace'][f'arg{i + 1}_offset'])
 
-        self.ret_addr = meta['ret_addr']
+        self.ret_offset = meta['regspace']['ret_offset']
 
     def __transformToStub(self, args):
         stubArgs = list()
@@ -73,6 +72,9 @@ class HardwareStub(Stub):
         return stubArgs
 
 
+    def __regspaceWrite(self, offset, data):
+        realOffset = offset * 0x4
+        self.hwMemory.write(self.regspace_offset + realOffset, self.data)
 
     def __call__(self, *args):
         args = self.__transformToStub(args)
@@ -82,53 +84,53 @@ class HardwareStub(Stub):
         # Control Register: AP_START = 1, AUTO_RESTART = 1
         self.mmio.write(0x0, 1 | (1 << 7))
 
-        # Initialise Argument Space::
-        ## regspace[1]  = GLOBAL_MEMORY_ADDR + &regspace[0]
-        self.mmio.write(self.regspace_offset + 1*0x4, self.base_addr + 0x40)
-        # If this is a function, it we need to supply arguments
+        # All of the following code fills out the CEP
+        # Specify the CEP address
+        self.__regspaceWrite(1, self.base_addr + 0x40)
+        # If this is a function, it we need to supply where to fetch arguments from
         if self.signature.is_function():
-            ## Insert the argument addresses (where the argument loop will insert them) into regspace
+            ## Supply the argument addresses for all
             for i in range(self.signature.arity()):
-                ## regspace[n]  = where to take the argument from
-                self.mmio.write(self.regspace_offset + self.arg_addrs[i] * 0x4, args[i].argspace_addr)
-        ## Provide the return address (if(regspace[return offset] != 0) doesn't run unless this runs)
-        ## regspace[n] = return endpoint address
-        self.mmio.write(self.regspace_offset + self.ret_addr * 0x4, self.argspace_addr)
+                ## Supply argument addresses in CEP
+                self.__regspaceWrite(self.arg_offsets[i], args[i].context_addr)
+        ## Specify REP address
+        self.__regspaceWrite(self.ret_offset, self.context_addr)
 
-        # If a function, populate properly
+        # Evaluate the arguments
         if self.signature.is_function():
             # Argument Loop - Call the arguments and insert their results
             for i in range(self.signature.arity()):
                 ## Leaving this here just in case
                 count = 0
-                while self.context.value(args[i].argspace_addr) == 0:
+                while self.context.value(args[i].context_addr) == 0:
                     # I want to see if this ever trips
                     print(f'[{time.time() - start_time}] BEING HELD IN ARG LOOP')
                     time.sleep(1)
                     count += 1
 
-                ## Initiate our own MMIO interface that points to this argument's argument space
-                mmio = MMIO(self.context.value(args[i].argspace_addr), 65536)
-                ## Write the result to argument space + 0
-                mmio.write(0, evalArgs[i])
-                ## Write the result status (not zero = success) to argument space + 1
-                mmio.write(4, 1)
+                ## Initiate our own MMIO interface that points to this stub's CEP
+                cepIO = MMIO(self.context.value(args[i].context_addr), 65536)
+                ## Write the arguments
+                cepIO.write(0, args[i])
+                ## Write the result status (not zero = success) to (&argument + 0x4)
+                cepIO.write(4, 1)
 
-                ## Clears the above values
-                self.context.clear(args[i].argspace_addr)
+                ## Clears the above values (I've yet to figure this part out)
+                self.context.clear(args[i].context_addr)
 
-        self.listen()
+        # CEP is now filled, we wait until HW has filled REP
+        self.__listen()
         return self.res
 
-    def listen(self):
+    def __listen(self):
         count = 0
-        while self.context.value(self.argspace_addr+4) == 0:
+        while self.context.get(4) == 0:
             # I want to see if this ever trips
             assert(False)
-            print(f'[{time.time() - start_time}] BEING HELD IN LISTEN LOOP WITH VAL: {self.context.value(self.argspace_addr+4)}')
+            print(f'[{time.time() - start_time}] BEING HELD IN LISTEN LOOP WITH VAL: {self.context.get(4)}')
             count = count + 1
-        self.context.clear(self.argspace_addr+4)
-        self.res = self.context.value(self.argspace_addr)
+        self.context.clear(self.context_addr+4)
+        self.res = self.context.get(0)
 
 # This is currently unused
 class PythonStub(Stub):

@@ -115,6 +115,10 @@ class Context:
         offset = math.ceil((address - self.mem.physical_address)/4)
         self.mem[offset] = 0
 
+    def get(self, offset) -> int:
+        self.mem.invalidate
+        self.mem.flush
+
     def value(self, address) -> int:
         """
         Return the value for an offset in the endpoint space
