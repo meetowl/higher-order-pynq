@@ -52,31 +52,7 @@ class Type:
 
         raise NotImplementedError(f'Type {type(var)} not implemented in HoP.')
 
-    def typeCheck(self, argStubs) -> bool:
-        if not self.is_function():
-            return len(argStubs) == 0
 
-        arity = 0
-        typeStack = list()
-        checkStack = list(map(lambda stub: stub.signature, reversed(argStubs)))
-        opTerm = self.typein
-
-        # Build the type stack
-        while opTerm.is_function():
-            typeStack.append(opTerm.typeout)
-            opTerm = opTerm.typein
-        typeStack.append(opTerm)
-
-        while len(typeStack) > 0 and len(checkStack) > 0:
-            a = typeStack.pop()
-            b = checkStack.pop()
-            if not a == b:
-                return False
-
-        if not len(typeStack) + len(checkStack) == 0:
-            return False
-
-        return True
 
 
 
@@ -151,6 +127,38 @@ class Function(Type):
 
     def __eq__(self, other):
         return other.is_function() and self.typein != other.typein and self.typeout != other.typeout
+
+    # See how many arguments are in function chain
+    def arity(self):
+        if not self.typeout.is_function():
+            return 1
+        else:
+            return 1 + self.typeout.arity()
+
+    def typeCheck(self, argStubs) -> bool:
+        checkStack = list(map(lambda stub: stub.signature, argStubs))
+        currTerm = self.typein
+        nextTerm = self.typeout
+
+        while checkStack:
+            a = checkStack.pop()
+            # Type doesn't match
+            if not currTerm == a:
+                return False
+            # Argument count mismatch
+            if checkStack and not nextTerm.is_function():
+                return False
+
+            if checkStack:
+                currTerm = nextTerm.typein
+                nextTerm = nextTerm.typeout
+
+        if not nextTerm.is_function():
+            # We've checked all arguments
+            return True
+        else:
+            # Not enough arguments supplied
+            return False
 
 class List(Type):
     def __init__(self, listType):
