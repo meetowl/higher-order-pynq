@@ -1,3 +1,6 @@
 TAGS
 *__pycache__*
 .ipynb_checkpoints
+cores/list_cache/obj_dir*
+cores/list_cache/obj_dir
+*.vcd
