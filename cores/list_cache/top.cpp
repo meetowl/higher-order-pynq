@@ -4,6 +4,7 @@
 #include "Vlist_cache.h"
 
 #define LIST_SIZE 100
+#define increment_eval() for (int i = 0; i < 2; i++) { lc->timeInc(1); top->CLK = !top->CLK; top->eval(); }
 
 int main(int argc, char** argv, char** env) {
         // Prevent unused variable warnings
@@ -19,31 +20,37 @@ int main(int argc, char** argv, char** env) {
 
         // Initialise the input list
         std::vector<int> xs = std::vector<int>(100);
-        for (int i = 0; i < LIST_SIZE; i++) xs[i] = i;
+        for (int i = 0; i < LIST_SIZE; i++) xs[i] = i + 1;
 
         top->CLK = 0;
         top->RESET = 1;
-
         // Warm up
         for (int i = 0; i < 10; i++) {
-                top->CLK = !top->CLK;
-                lc->timeInc(1);
-                top->eval();
+                increment_eval();
         }
         top->RESET = 0;
 
         // Process
-        for (int i = 0; i < LIST_SIZE; i += 2) {
-                lc->timeInc(1);
-                top->CLK = !top->CLK;
-                // if (top->NEXT) {
-                //         top->LIST_IN[0] = xs[i];
-                //         top->LIST_IN[1] = xs[i+1];
-                // }
-                top->eval();
+        for (int i = 0; i < LIST_SIZE; i += 1) {
+                // Python Side
+                top->LIST_NEXT_READY = 0;
+                increment_eval();
+
+                // IP Side
+                top->ARG_RECEIVED = 0;
+                increment_eval();
+
+                // Python Side
+                top->LIST_IN = xs[i];
+                top->LIST_NEXT_READY = 1;
+                increment_eval();
+
+                // IP Side
+                int argin = top->ARG_OUT;
+                top->ARG_RECEIVED = 1;
+                increment_eval();
+
         }
         top->final();
-        // delete &top;
-        // delete &lc;
         return 0;
 }

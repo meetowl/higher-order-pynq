@@ -6,35 +6,57 @@ module list_cache
     // System
     input wire                  CLK,
     input wire                  RESET,
+    input wire                  s_axi_control,
 
     // HP Port
-    //input wire [TYPE_WIDTH-1:0] LIST_IN,
-    //output wire                 NEXT,
+    input wire [TYPE_WIDTH-1:0] LIST_IN,
+
+    // DMA
+    input wire                  LIST_NEXT_READY,
 
     // IP
-    input wire                  READY,
+    input wire                  ARG_RECEIVED,
     output reg [TYPE_WIDTH-1:0] ARG_OUT
     );
 
-   localparam                    BT = TYPE_WIDTH - 1;
-   //localparam                    TRUE = 1'b1;
-   //localparam                    FALSE = 1'b0;
+   localparam                   BUFFER_SIZE = 4;
+   localparam                   HAND_SIZE = 3;
+   localparam                   WIDTH_MAX = TYPE_WIDTH - 1;
+   localparam                   BUF_MAX = BUFFER_SIZE - 1;
+   localparam                   HAND_MAX = HAND_SIZE - 1;
 
-   reg [1:0][BT:0]               scratchpad;
-   reg                           hand;
+   // localparam                    TRUE = 1'b1;
+   // localparam                    FALSE = 1'b0;
+
+   reg [BUF_MAX:0][WIDTH_MAX:0] scratchpad;
+   reg [HAND_MAX:0]             hand;
+   reg [HAND_MAX:0]             fetch_hand;
+
+   assign fetch_hand = hand - 1'd1;
 
    always @(posedge CLK) begin
-      if (~RESET) begin
-         if (READY)
-           ARG_OUT <= scratchpad[hand];
-         if (~READY)
-           hand <= hand + 1'b1;
-      end
+      if (~RESET)
+        if (LIST_NEXT_READY) begin
+           scratchpad[fetch_hand] <= LIST_IN;
+        end
+        else
+          scratchpad[fetch_hand] <= scratchpad[fetch_hand];
    end
 
    always @(posedge CLK) begin
-      scratchpad[0] <= 1;
-      scratchpad[1] <= 2;
+      if (~RESET)
+        if (ARG_RECEIVED) begin
+           ARG_OUT <= scratchpad[hand];
+           hand <= hand;
+        end
+        else
+          hand <= hand + 1;
+   end
+
+   always @(posedge CLK) begin
+      if (RESET) begin
+         hand <= 0;
+      end
    end
 
    initial begin
