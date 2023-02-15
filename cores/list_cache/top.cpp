@@ -4,19 +4,24 @@
 #include "Vlist_cache.h"
 
 #define LIST_SIZE 100
-#define increment_eval() for (int i = 0; i < 2; i++) { lc->timeInc(1); top->CLK = !top->CLK; top->eval(); }
+#define increment_eval()                                \
+        for (int i = 0; i < 2; i++) {                   \
+                contextp->timeInc(1);                   \
+                top->CLK = !top->CLK;                   \
+                top->eval();                            \
+        }
 
 int main(int argc, char** argv, char** env) {
         // Prevent unused variable warnings
         if (false && argc && argv && env) {}
 
-        const std::unique_ptr<VerilatedContext> lc{new VerilatedContext};
+        const std::unique_ptr<VerilatedContext> contextp{new VerilatedContext};
         Verilated::traceEverOn(true);
-        lc->debug(0);
-        lc->randReset(2);
-        lc->traceEverOn(true);
-        lc->commandArgs(argc, argv);
-        const std::unique_ptr<Vlist_cache> top{new Vlist_cache{lc.get(), "TOP"}};
+        contextp->debug(0);
+        contextp->randReset(2);
+        contextp->traceEverOn(true);
+        contextp->commandArgs(argc, argv);
+        const std::unique_ptr<Vlist_cache> top{new Vlist_cache{contextp.get(), "TOP"}};
 
         // Initialise the input list
         std::vector<int> xs = std::vector<int>(100);
@@ -30,26 +35,19 @@ int main(int argc, char** argv, char** env) {
         }
         top->RESET = 0;
 
+        // Pin IP ready pin to ready
+        top->i_ready = 1;
+
         // Process
         for (int i = 0; i < LIST_SIZE; i += 1) {
                 // Python Side
-                top->LIST_NEXT_READY = 0;
-                increment_eval();
-
-                // IP Side
-                top->ARG_RECEIVED = 0;
+                top->i_valid = 0;
                 increment_eval();
 
                 // Python Side
-                top->LIST_IN = xs[i];
-                top->LIST_NEXT_READY = 1;
+                top->i_data = xs[i];
+                top->i_valid = 1;
                 increment_eval();
-
-                // IP Side
-                int argin = top->ARG_OUT;
-                top->ARG_RECEIVED = 1;
-                increment_eval();
-
         }
         top->final();
         return 0;

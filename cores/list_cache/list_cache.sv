@@ -1,63 +1,81 @@
 module list_cache
   #(
-    parameter TYPE_WIDTH = 32
+    parameter DW = 32
     )
    (
     // System
-    input wire                  CLK,
-    input wire                  RESET,
-    input wire                  s_axi_control,
+    input wire           CLK,
+    input wire           RESET,
 
-    // HP Port
-    input wire [TYPE_WIDTH-1:0] LIST_IN,
+    input wire           i_valid,
+    input wire [DW-1:0]  i_data,
+    output wire          o_ready,
 
-    // DMA
-    input wire                  LIST_NEXT_READY,
 
-    // IP
-    input wire                  ARG_RECEIVED,
-    output reg [TYPE_WIDTH-1:0] ARG_OUT
+    output wire           o_valid,
+    output reg [DW-1:0]  o_data,
+    input wire          i_ready
     );
 
-   localparam                   BUFFER_SIZE = 4;
-   localparam                   HAND_SIZE = 3;
-   localparam                   WIDTH_MAX = TYPE_WIDTH - 1;
-   localparam                   BUF_MAX = BUFFER_SIZE - 1;
-   localparam                   HAND_MAX = HAND_SIZE - 1;
+   // // Buffer Size
+   // localparam                   BS = 4;
+   // // Hand Size
+   // // Must be:
+   // // - Big enough to address BS
+   // // - Small enough to overflow nicely
+   // localparam                   HS = 3;
 
-   // localparam                    TRUE = 1'b1;
-   // localparam                    FALSE = 1'b0;
+   // reg [BS-1:0][DW-1:0]         scratchpad;
+   // reg [HS-1:0]                 hand;
 
-   reg [BUF_MAX:0][WIDTH_MAX:0] scratchpad;
-   reg [HAND_MAX:0]             hand;
-   reg [HAND_MAX:0]             fetch_hand;
 
-   assign fetch_hand = hand - 1'd1;
+   // Skid Buffer part
+   // Registers (r_)
+   reg                          r_valid;
+   reg [DW-1:0]                 r_data;
+   reg                          ro_valid;
 
-   always @(posedge CLK) begin
-      if (~RESET)
-        if (LIST_NEXT_READY) begin
-           scratchpad[fetch_hand] <= LIST_IN;
-        end
-        else
-          scratchpad[fetch_hand] <= scratchpad[fetch_hand];
-   end
+   // r_valid
+   // Only valid when we are ready to give output but input of next is stalled
+   always @(posedge CLK)
+     if (RESET)
+       r_valid <= 0;
+     else if ((i_valid && o_ready) && (o_valid && !i_ready))
+       r_valid <= 1;
+     else if (i_ready)
+       r_valid <= 0;
 
-   always @(posedge CLK) begin
-      if (~RESET)
-        if (ARG_RECEIVED) begin
-           ARG_OUT <= scratchpad[hand];
-           hand <= hand;
-        end
-        else
-          hand <= hand + 1;
-   end
+   // r_data
+   always @(posedge CLK)
+     if (RESET)
+       r_data <= 0;
+     else if (o_ready)
+       r_data <= i_data;
 
-   always @(posedge CLK) begin
-      if (RESET) begin
-         hand <= 0;
-      end
-   end
+   assign o_ready = !r_valid;
+
+   // ro_valid
+   always @(posedge CLK)
+     if (RESET)
+       ro_valid <= 0;
+     else if (!o_valid || i_ready)
+       ro_valid <= (i_valid || r_valid);
+
+   assign o_valid = ro_valid;
+
+   // o_data
+   always @(posedge CLK)
+     if (RESET)
+       o_data <= 0;
+     else if (!o_valid || i_ready)
+       begin
+          if (r_valid)
+            o_data <= r_data;
+          else if (i_valid)
+            o_data <= i_data;
+          else
+            o_data <= 0;
+       end
 
    initial begin
       if ($test$plusargs("trace") != 0) begin
@@ -67,5 +85,4 @@ module list_cache
       end
       $display("[%0t] Model running...\n", $time);
    end
-
 endmodule
