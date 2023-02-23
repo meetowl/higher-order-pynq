@@ -13,6 +13,7 @@
 int main(int argc, char** argv, char** env) {
         int fetch_size = 4;
         int data_size = fetch_size - 1;
+        int list_size = data_size * 16;
         // Prevent unused variable warnings
         if (false && argc && argv && env) {}
 
@@ -25,7 +26,8 @@ int main(int argc, char** argv, char** env) {
         const std::unique_ptr<Vlist_cache> top{new Vlist_cache{contextp.get(), "TOP"}};
 
         // Initialise the input list
-        std::vector<int> xs = std::vector<int>{1,2,3,4,5,6,7,8,9,10,11,12};
+        std::vector<int> xs = std::vector<int>(list_size);
+        for (int i = 1; i <= list_size; i++) xs[i] = i;
 
         top->CLK = 0;
         top->RESET = 1;
