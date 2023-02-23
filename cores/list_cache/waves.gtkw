@@ -1,32 +1,32 @@
 [*]
 [*] GTKWave Analyzer v3.3.113 (w)1999-2022 BSI
-[*] Wed Feb 15 13:22:59 2023
+[*] Thu Feb 23 14:18:07 2023
 [*]
 [dumpfile] "/home/meetowl/uni/project/src/hop/cores/list_cache/wavedump.vcd"
-[dumpfile_mtime] "Wed Feb 15 13:21:22 2023"
-[dumpfile_size] 10428
+[dumpfile_mtime] "Thu Feb 23 14:08:35 2023"
+[dumpfile_size] 2643
 [savefile] "/home/meetowl/uni/project/src/hop/cores/list_cache/waves.gtkw"
 [timestart] 1
-[size] 1000 600
+[size] 1334 660
 [pos] -1 -1
-*0.000000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*0.000000 6 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] TOP.
 [sst_width] 245
 [signals_width] 126
 [sst_expanded] 1
-[sst_vpaned_height] 162
+[sst_vpaned_height] 183
 @28
 TOP.list_cache.CLK
 TOP.list_cache.RESET
-TOP.list_cache.i_valid
 @22
-TOP.list_cache.i_data[31:0]
+TOP.list_cache.IN[127:0]
+TOP.list_cache.IN_R[95:0]
+@23
+TOP.list_cache.OUT[31:0]
 @28
-TOP.list_cache.o_ready
+TOP.list_cache.i_valid
 TOP.list_cache.o_valid
-@22
-TOP.list_cache.o_data[31:0]
-@29
 TOP.list_cache.i_ready
+TOP.list_cache.o_ready
 [pattern_trace] 1
 [pattern_trace] 0
