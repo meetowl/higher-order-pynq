@@ -6,6 +6,7 @@ import traceback
 import random
 import numpy as np
 from pynq import MMIO
+from pynq import allocate
 import typesystem.hop_types as ht
 start_time = time.time()
 # config/debug space
@@ -221,12 +222,24 @@ class VarStub(Stub):
 
 
 class ListStub(Stub):
+    # I am following this example on how to use stream IPs:
+    # https://discuss.pynq.io/t/tutorial-using-a-hls-stream-ip-with-dma-part-3-using-the-hls-ip-from-pynq
     def __init__(self, context, signature, l, name=None):
-        self.l = l
+        # TODO: Don't just allocate a buffer for the entire list (space = 2n)
+        # For the moment keep it like this for debugging
+        self.listBuffer = allocate(shape=(len(l),),
+                                   dtype=signature.listType.getNumpyType())
+        for i in range(len(l)):
+            self.listBuffer[i] = l.pop()
+
         super().__init__(context, name, signature)
 
-    def __call__(self, i):
-        return l[i]
+    def __call__(self, sendChannel, receiveChannel, receiveBuffer):
+        # boils down to
+        sendChannel.transfer(self.listBuffer)
+        receiveChannel.transfer(receiveBuffer)
+        dma.sendchannel.wait()
+        dma.recvchannel.wait()
 
     def __str__(self):
         return str(self.l)
