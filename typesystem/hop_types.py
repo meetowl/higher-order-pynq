@@ -2,7 +2,7 @@ import typesystem.typelexer as typelexer
 import typesystem.typeparser as typeparser
 import ply.lex as lex
 import ply.yacc as yacc
-import numpy
+import numpy as np
 
 class Type:
     def is_function(self):
@@ -18,61 +18,82 @@ class Type:
     def __eq__(self, other):
         return NotImplemented
 
+
+
     def typeMatch(var):
         'Convert variable to the correspoinding HoP Type'
+        # Existing type case
         if (isinstance(var, Type)):
             return var
 
-        # Currently we only think with int
-        # TODO: enforce numpy types
-        if isinstance(var, int):
-            return Base.for_num(var)
-
-        # Numpy Case
-        if type(var).__module__ == numpy.__name__:
-            if numpy.isscalar(var):
+        # Numpy case
+        if type(var).__module__ == np.__name__:
+            if np.isscalar(var):
                 return Base(var.itemsize * 8)
 
+        # Tuple case
         if isinstance(var, tuple):
             tupList = []
             for e in var:
                 tupList.append(Type.typeMatch(e))
             return Tuple(tupList)
 
-        # Just assume list has one type
-        # TODO enforce this with numpy
+        # List case
         if isinstance(var, list):
             listType = Type.typeMatch(var.pop())
-            for e in var:
-                eType = Type.typeMatch(e)
-                if listType != eType:
-                    raise TypeError(f'All types must be the same, but found both {listType} ' +
-                                    f'and {eType} in list!')
-            return List(listType)
+            # If it is a base type, find the minimum base width we need
+            # This is prone to errors (hi future debugging me, ilu :))
+            if listType.is_base():
+                maxWidth = listType.width
+                for e in var:
+                    w = e.bit_length
+                    if w > maxWidth:
+                        maxWidth = w
+                return Base(width=maxWidth)
+            else:
+                raise NotImplementedError(f'Only list of first-order types are currently supported, '
+                                          + f'not {listType}!')
+        # Int case
+        if isinstance(var, int):
+            return Base.for_num(var)
 
-        raise NotImplementedError(f'Type {type(var)} not implemented in HoP.')
-
-
-
+        raise NotImplementedError(f'Type of \'{var}\' not yet implemented in HoP.')
 
 
 class Base(Type):
+    # Match with numpy widths
+    widths = [8, 16, 32, 64]
+    npType = {8: np.int8,
+              16: np.int16,
+              32: np.int32,
+              64: np.int64}
     def __init__(self, width=32):
-        self.width = width
+        self.width = None
+        # Align width with numpy type
+        for w in Base.widths:
+            if width <= w:
+                self.width <= w
+
+        if self.width == None:
+            raise TypeError(f'Type of width {width} is bigger than ' +
+                            f'max supported width ({widths[-1]})!')
 
     @classmethod
     def for_num(base, num) -> 'Base':
-        width = num.bit_length()
-        return base(width)
+        return base(num.bit_length())
 
     def __str__(self):
         return f'b{self.width}'
 
+    def __eq__(self, other):
+        return other.is_base() and self.width == other.width
+
     def is_base(self):
         return True
 
-    def __eq__(self, other):
-        return other.is_base() and self.width == other.width
+    def getNumpyType(self):
+        return npType[self.width]
+
 
 class Tuple(Type):
     def __init__(self, elementList):
