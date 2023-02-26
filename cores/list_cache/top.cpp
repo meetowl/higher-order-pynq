@@ -77,6 +77,8 @@ int main(int argc, char** argv, char** env) {
                 ++i;
                 increment_eval();
         }
+
+        while (top->o_valid) increment_eval();
         top->final();
         return 0;
 }

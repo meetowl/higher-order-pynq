@@ -47,8 +47,9 @@ module list_cache
    // Prefetching
    reg                          fetch_hand;
    reg                          cache_dirty;
-   reg                          cache_init;
+   wire                         cache_init;
    reg [1:0]                    cache_total_uninit;
+   wire                         cache_empty;
 
    // Skid Buffer part
    // Registers (r_)
@@ -112,23 +113,32 @@ module list_cache
             cache_total_uninit <= cache_total_uninit - 1;
        end
 
-   assign o_valid = cache_init;
+   assign cache_empty = (hand == fetch_hand * TS) & cache_dirty;
 
    // Hand
    reg [HS-1:0] i;
    always @(posedge CLK)
-     if (RESET | ~cache_init)
+     if (RESET | ~cache_init) begin
         hand <= 0;
-     else
-       if (hand == ((FS-1) * BS) - 1)
-         hand <= 0;
-       else begin
-         for (i = 1; i <= BS; i++)
-           if (hand == ((TS * i) - 1) - 1) begin
-              cache_dirty <= 1;
-           end
-          hand <= hand + 1;
-       end
+        o_valid <= 0;
+     end
+     else if (~cache_empty) begin
+        o_valid <= 1;
+        if (hand == ((FS-1) * BS) - 1)
+          hand <= 0;
+        else begin
+           for (i = 1; i <= BS; i++)
+             if (hand == ((TS * i) - 1) - 1) begin
+                cache_dirty <= 1;
+             end
+           hand <= hand + 1;
+        end
+     end // if (~cache_empty)
+     else begin
+        hand <= hand;
+        o_valid <= 0;
+     end
+
 
    initial begin
       if ($test$plusargs("trace") != 0) begin
