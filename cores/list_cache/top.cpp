@@ -27,7 +27,7 @@ int main(int argc, char** argv, char** env) {
 
         // Initialise the input list
         std::vector<int> xs = std::vector<int>(list_size);
-        for (int i = 1; i <= list_size; i++) xs[i] = i;
+        for (int i = 0; i <= list_size; i++) xs[i] = i + 1;
 
         top->CLK = 0;
         top->RESET = 1;

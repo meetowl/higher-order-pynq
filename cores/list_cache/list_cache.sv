@@ -102,15 +102,23 @@ module list_cache
         fetch_hand <= 0;
         cache_dirty <= 0;
         cache_total_uninit <= BS;
+        cacheline <= 1;
+        cacheline_last_clock <= 1;
      end
-     else
-       if (cacheline_changed & (cache_dirty | ~cache_init)) begin
+     else if (cache_init) begin
+       if (cacheline_changed & cache_dirty) begin
           cache[fetch_hand] <= cacheline[FS-1:1];
           fetch_hand <= fetch_hand + 1;
           cache_dirty <= 0;
           cacheline_last_clock <= cacheline_clock;
-          if (~cache_init)
-            cache_total_uninit <= cache_total_uninit - 1;
+       end
+     end
+     else // cache_init = 0
+       if (cacheline_changed) begin
+          cache_total_uninit <= cache_total_uninit - 1;
+          fetch_hand <= fetch_hand + 1;
+          cacheline_last_clock <= cacheline_clock;
+          cache[fetch_hand] <= cacheline[FS-1:1];
        end
 
    assign cache_empty = (hand == fetch_hand * TS) & cache_dirty;
