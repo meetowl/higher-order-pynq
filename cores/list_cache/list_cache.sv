@@ -130,7 +130,7 @@ module list_cache
         hand <= 0;
         o_valid <= 0;
      end
-     else if (~cache_empty) begin
+     else if (~cache_empty & i_ready) begin
         o_valid <= 1;
         if (hand == ((FS-1) * BS) - 1)
           hand <= 0;
@@ -142,11 +142,14 @@ module list_cache
            hand <= hand + 1;
         end
      end // if (~cache_empty)
-     else begin
+     else if (cache_empty) begin
         hand <= hand;
         o_valid <= 0;
      end
-
+     else if (~i_ready) begin
+        o_valid <= 1;
+        hand <= hand;
+     end
 
    initial begin
       if ($test$plusargs("trace") != 0) begin

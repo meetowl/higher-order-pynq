@@ -7,30 +7,31 @@
 #define FETCH_SIZE 8
 #define PACKET_START 1
 
-int clock_time;
+int *clock_time;
 int correct_out;
 
-void increment_eval(std::shared_ptr<VerilatedContext> contextp,
+inline void increment_eval(std::shared_ptr<VerilatedContext> contextp,
                     std::shared_ptr<Vlist_cache> top) {
         for (int i = 0; i < 2; i++) {
                 contextp->timeInc(1);
                 top->CLK = !top->CLK;
                 top->eval();
                 if (top->CLK) { // Rising edge
-                        if (top->o_valid) {
+                        if (top->o_valid && top->i_ready) {
                                 if (top->OUT != correct_out) {
-                                        printf("error: [%d] Expected %d but got %d.\n", clock_time,
+                                        printf("error: [%d] Expected %d but got %d.\n", *clock_time,
                                                correct_out, top->OUT);
                                 }
                                 ++correct_out;
                         }
-                        ++clock_time;
+                        ++(*clock_time);
                 }
         }
 }
 
 int main(int argc, char** argv, char** env) {
-        int clock_time = 0;
+        int ct = 0;
+        clock_time = &ct;
         int fetch_size = 8;
         int data_size = fetch_size - 1;
         int list_size = data_size * 16;
@@ -69,6 +70,8 @@ int main(int argc, char** argv, char** env) {
         // Process
         int i = 0;
         bool first = true;
+
+        top->i_ready = 0;
         while (i < packets) {
                 // Prepare packet
                 int packet[fetch_size];
@@ -79,7 +82,15 @@ int main(int argc, char** argv, char** env) {
                         last_packet = !last_packet;
                 }
 
-                if (!first) while (!top->next_ready) increment_eval(contextp, top);
+                if (!first) {
+                        while (ct >= 30 &&
+                            ct <= 45) {
+                                top->i_ready = 0;
+                                increment_eval(contextp, top);
+                        }
+                        if (ct > 7) top->i_ready = 1;
+                        while (!top->next_ready) increment_eval(contextp, top);
+                }
 
                 // Update wires
                 printf("[");
@@ -102,4 +113,4 @@ int main(int argc, char** argv, char** env) {
         while (top->o_valid) increment_eval(contextp, top);
         top->final();
         return 0;
-}
+        }
