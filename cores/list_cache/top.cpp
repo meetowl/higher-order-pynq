@@ -11,7 +11,7 @@
         }
 
 int main(int argc, char** argv, char** env) {
-        int fetch_size = 4;
+        int fetch_size = 8;
         int data_size = fetch_size - 1;
         int list_size = data_size * 16;
         // Prevent unused variable warnings
@@ -31,8 +31,9 @@ int main(int argc, char** argv, char** env) {
 
         top->CLK = 0;
         top->RESET = 1;
+        top->i_valid = 0;
         // Warm up
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 2; i++) {
                 increment_eval();
         }
         top->RESET = 0;
@@ -45,26 +46,37 @@ int main(int argc, char** argv, char** env) {
         if (xs.size() % data_size != 0) ++packets;
         int last_packet = 0;
         // Process
-        for (int i = 0; i < packets; i += 1) {
+        int i = 0;
+        bool first = true;
+        while (i < packets) {
                 // Prepare packet
                 int packet[fetch_size];
                 packet[0] = last_packet;
-                last_packet = !last_packet;
+
                 for (int j = 0; j < fetch_size - 1; j++) {
                         packet[j+1] = xs[(i * data_size) + j];
+                        last_packet = !last_packet;
                 }
 
+                if (!first) while (!top->next_ready) increment_eval();
 
                 // Update wires
                 printf("[");
                 for (int j = 0; j < fetch_size; j++) {
                         printf("%d,", packet[j]);
                         top->IN[j] = packet[j];
+
                 }
                 printf("]\n");
 
+                if (first) {
+                        increment_eval();
+                        top->i_valid = 1;
+                        first = false;
+                }
+                ++i;
                 increment_eval();
         }
-                top->final();
+        top->final();
         return 0;
 }
