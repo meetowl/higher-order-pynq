@@ -1,40 +1,61 @@
 #include <vector>
 #include <iostream>
+#include <list>
 #include "verilated.h"
 #include "Vlist_cache.h"
 
-#define increment_eval()                                \
-        for (int i = 0; i < 2; i++) {                   \
-                contextp->timeInc(1);                   \
-                top->CLK = !top->CLK;                   \
-                top->eval();                            \
+#define FETCH_SIZE 8
+#define PACKET_START 1
+
+int clock_time;
+int correct_out;
+
+void increment_eval(std::shared_ptr<VerilatedContext> contextp,
+                    std::shared_ptr<Vlist_cache> top) {
+        for (int i = 0; i < 2; i++) {
+                contextp->timeInc(1);
+                top->CLK = !top->CLK;
+                top->eval();
+                if (top->CLK) { // Rising edge
+                        if (top->o_valid) {
+                                if (top->OUT != correct_out) {
+                                        printf("error: [%d] Expected %d but got %d.\n", clock_time,
+                                               correct_out, top->OUT);
+                                }
+                                ++correct_out;
+                        }
+                        ++clock_time;
+                }
         }
+}
 
 int main(int argc, char** argv, char** env) {
+        int clock_time = 0;
         int fetch_size = 8;
         int data_size = fetch_size - 1;
         int list_size = data_size * 16;
         // Prevent unused variable warnings
         if (false && argc && argv && env) {}
 
-        const std::unique_ptr<VerilatedContext> contextp{new VerilatedContext};
+        const std::shared_ptr<VerilatedContext> contextp{new VerilatedContext};
         Verilated::traceEverOn(true);
         contextp->debug(0);
         contextp->randReset(2);
         contextp->traceEverOn(true);
         contextp->commandArgs(argc, argv);
-        const std::unique_ptr<Vlist_cache> top{new Vlist_cache{contextp.get(), "TOP"}};
+        const std::shared_ptr<Vlist_cache> top{new Vlist_cache{contextp.get(), "TOP"}};
 
         // Initialise the input list
+        correct_out = PACKET_START;
         std::vector<int> xs = std::vector<int>(list_size);
-        for (int i = 0; i <= list_size; i++) xs[i] = i + 1;
+        for (int i = 0; i < list_size; i++) xs[i] = correct_out + i;
 
         top->CLK = 0;
         top->RESET = 1;
         top->i_valid = 0;
         // Warm up
         for (int i = 0; i < 2; i++) {
-                increment_eval();
+                increment_eval(contextp, top);
         }
         top->RESET = 0;
 
@@ -58,7 +79,7 @@ int main(int argc, char** argv, char** env) {
                         last_packet = !last_packet;
                 }
 
-                if (!first) while (!top->next_ready) increment_eval();
+                if (!first) while (!top->next_ready) increment_eval(contextp, top);
 
                 // Update wires
                 printf("[");
@@ -70,15 +91,15 @@ int main(int argc, char** argv, char** env) {
                 printf("]\n");
 
                 if (first) {
-                        increment_eval();
+                        increment_eval(contextp, top);
                         top->i_valid = 1;
                         first = false;
                 }
                 ++i;
-                increment_eval();
+                increment_eval(contextp, top);
         }
 
-        while (top->o_valid) increment_eval();
+        while (top->o_valid) increment_eval(contextp, top);
         top->final();
         return 0;
 }
