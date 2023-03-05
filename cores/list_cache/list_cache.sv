@@ -1,24 +1,32 @@
 module list_cache
   #(
-    parameter DW = 32
+    // Data width (Bits)
+    parameter DW = 32,
+    // Data Bus Width (Bits)
+    parameter DBW = 4096
     )
    (
     /* verilator lint_off UNUSEDSIGNAL */
     /* verilator lint_off UNDRIVEN */
-    // System
-    input wire                  CLK,
-    input wire                  RESET,
 
-    // I/O
-    input wire [FS-1:0][DW-1:0] IN,
-    output reg [DW-1:0]         OUT,
+    // AXI4-Stream Communication
+    input wire          ACLK,
+    input wire          ARESETn,
+    input wire [BDW:0]  TDATA,
+    input wire          TVALID;
+    output wire         TREADY;
 
-    // Skid buffer signals
-    input wire                  i_valid,
-    output wire                 next_ready,
+    //// Unused
+    input wire [3:0]    TDEST;
+    input wire [7:0]    TID;
+    input wire          TLAST;
+    input wire [N-1:0]  TUSER;
 
-    output wire                 o_valid,
-    input wire                  i_ready
+
+    // HoP Module Communication
+    input reg           I_READY
+    output reg [DW-1:0] OUT,
+    output reg          O_VALID,
     /* verilator lint_on UNUSEDSIGNAL */
     /* verilator lint_on UNDRIVEN */
     );
@@ -26,21 +34,18 @@ module list_cache
    // Buffer Size
    localparam           BS = 2;
    // Fetch Size
-   localparam           FS = 8;
-   // Transfer size (how much data is actually transferred, TS * BS = len(list_cache))
-   localparam           TS = FS - 1;
+   localparam           FS = DBW / DW;
    // Hand Size
    localparam           HS = 5;
 
    // Registered Input
-   /* verilator lint_off UNUSEDSIGNAL */
    reg [FS-1:0][DW-1:0] cacheline;
 
    // Caching
    reg [BS-1:0][TS-1:0][DW-1:0] cache;
    reg [HS-1:0]                 hand;
-   /* verilator lint_on UNUSEDSIGNAL */
 
+   // Make cache reading easier
    wire [(TS*BS)-1:0][DW-1:0]   cache_read;
    assign cache_read = cache;
 
@@ -51,20 +56,14 @@ module list_cache
    reg [1:0]                    cache_total_uninit;
    wire                         cache_empty;
 
-   // Skid Buffer part
-   // Registers (r_)
-   // reg                          r_valid;
-   // // reg [DW-1:0]                 r_data;
-   // reg                          ro_valid;
-
    // Packet change detector
    wire                         packet_clock;
    wire                         cacheline_clock;
    wire                         refresh_ready;
    reg                          cacheline_changed;
    reg                          cacheline_last_clock;
-   // o_data
 
+   // OUT
    always @(posedge CLK)
      if (RESET)
        OUT <= 0;
