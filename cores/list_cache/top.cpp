@@ -94,6 +94,9 @@ int main(int argc, char** argv, char** env) {
 
                 increment_eval(contextp, top);
         }
+        // AXI4-Stream spec says if we have nothing else to give
+        // then TVALID goes down.
+        top->TVALID = 0;
 
         while (top->O_VALID && iter < (MAX_ITER * 2)) {
                 increment_eval(contextp, top);
