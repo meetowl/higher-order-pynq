@@ -3,30 +3,29 @@ module list_cache
     // Data width (Bits)
     parameter DW = 32,
     // Data Bus Width (Bits)
-    parameter DBW = 4096
+    parameter DBW = 256
     )
    (
     /* verilator lint_off UNUSEDSIGNAL */
     /* verilator lint_off UNDRIVEN */
 
     // AXI4-Stream Communication
-    input wire          ACLK,
-    input wire          ARESETn,
-    input wire [BDW:0]  TDATA,
-    input wire          TVALID;
-    output wire         TREADY;
+    input wire           ACLK,
+    input wire           ARESETn,
+    input wire [DBW-1:0] TDATA,
+    input wire           TVALID,
+    output reg           TREADY,
 
     //// Unused
-    input wire [3:0]    TDEST;
-    input wire [7:0]    TID;
-    input wire          TLAST;
-    input wire [N-1:0]  TUSER;
-
+    input wire [3:0]     TDEST,
+    input wire [7:0]     TID,
+    input wire           TLAST,
+    input wire [DBW-1:0] TUSER,
 
     // HoP Module Communication
-    input reg           I_READY
-    output reg [DW-1:0] OUT,
-    output reg          O_VALID,
+    input reg            I_READY,
+    output reg [DW-1:0]  OUT,
+    output reg           O_VALID
     /* verilator lint_on UNUSEDSIGNAL */
     /* verilator lint_on UNDRIVEN */
     );
@@ -36,119 +35,126 @@ module list_cache
    // Fetch Size
    localparam           FS = DBW / DW;
    // Hand Size
-   localparam           HS = 5;
+   // CAREFUL: This needs to overflow nicely (avoid the logic for it)
+   localparam           HS = $clog2(FS * BS);
+   // TODO: Figure out how to do this properly
+   // assert final ((2 ** HS) == ($clog2(FS * BS)));
 
    // Registered Input
    reg [FS-1:0][DW-1:0] cacheline;
+   reg                  cacheline_needs_update;
 
    // Caching
-   reg [BS-1:0][TS-1:0][DW-1:0] cache;
+   reg [BS-1:0][FS-1:0][DW-1:0] cache;
    reg [HS-1:0]                 hand;
+   /// For comparisons, verilator trips with 2b == 3b
+   /// so we answer its wishes by casting
+   reg [HS + 4:0]                   hand_cmp;
+   // assign hand_cmp = {{(32 - HS){1'b0}}, hand};
+   assign hand_cmp = {{5'b0}, hand};
+
 
    // Make cache reading easier
-   wire [(TS*BS)-1:0][DW-1:0]   cache_read;
+   wire [(FS*BS)-1:0][DW-1:0]   cache_read;
    assign cache_read = cache;
 
    // Prefetching
    reg                          fetch_hand;
    reg                          cache_dirty;
-   wire                         cache_init;
+   reg                          cache_init;
    reg [1:0]                    cache_total_uninit;
-   wire                         cache_empty;
-
-   // Packet change detector
-   wire                         packet_clock;
-   wire                         cacheline_clock;
-   wire                         refresh_ready;
-   reg                          cacheline_changed;
-   reg                          cacheline_last_clock;
+   reg                          cache_empty;
 
    // OUT
-   always @(posedge CLK)
-     if (RESET)
+   // O_VALID is up if its correct so don't care about
+   // non-nil values.
+   always @(posedge ACLK)
+     if (ARESETn)
        OUT <= 0;
-     else if (!o_valid || i_ready)
-       begin
-          OUT <= cache_read[hand];
-       end
+     else
+       OUT <= cache_read[hand];
 
-   // We reserve the 0th bit as a 'clock' signal, indicator of sequence
-   assign packet_clock = IN[0][0];
-   assign cacheline_clock = cacheline[0][0];
-   assign refresh_ready = packet_clock ^ cacheline_clock;
-   assign cacheline_changed  = cacheline_last_clock ^ cacheline_clock;
    assign cache_init = cache_total_uninit == 0;
 
-   // Refresh mech
-   // The cacheline is refreshed, and then we get the next input ready
-   always @(posedge CLK)
-     if (RESET) begin
-        cacheline <= 1;
-        next_ready <= 0;
+   // Cacheline Refresh mech
+   always @(posedge ACLK)
+     if (ARESETn) begin
+        cacheline <= 0;
+        cacheline_needs_update <= 1;
+        TREADY <= 0;
      end
-     else
-       if (i_valid & refresh_ready & ~cacheline_changed) begin
-          cacheline <= IN;
-          next_ready <= 1;
+     else if (cache_init) begin
+       if (TVALID & cacheline_needs_update) begin
+          cacheline <= TDATA;
+          cacheline_needs_update <= 0;
+          TREADY <= 1;
        end
-       else if (next_ready & i_valid)
-         next_ready <= 0;
+       else if (TREADY & TVALID)
+         TREADY <= 0;
+     end
+     else begin // cache_init == 0
+        if (TVALID & cacheline_needs_update) begin
+           cacheline <= TDATA;
+           cacheline_needs_update <= 0;
+           TREADY <= 1;
+        end
+        else if (TVALID & TREADY)
+          TREADY <= 0;
 
-   // Cacheline Mech
-   always @(posedge CLK)
-     if (RESET) begin
-        cache <= 0;
+
+     end
+
+   // Cache fill Mech
+   always @(posedge ACLK)
+     if (ARESETn) begin
         fetch_hand <= 0;
         cache_dirty <= 0;
         cache_total_uninit <= BS;
-        cacheline <= 1;
-        cacheline_last_clock <= 1;
      end
      else if (cache_init) begin
-       if (cacheline_changed & cache_dirty) begin
-          cache[fetch_hand] <= cacheline[FS-1:1];
+       if (cache_dirty & ~cacheline_needs_update) begin
+          cache[fetch_hand] <= cacheline;
+          cacheline_needs_update <= 1;
           fetch_hand <= fetch_hand + 1;
           cache_dirty <= 0;
-          cacheline_last_clock <= cacheline_clock;
        end
      end
-     else // cache_init = 0
-       if (cacheline_changed) begin
-          cache_total_uninit <= cache_total_uninit - 1;
-          fetch_hand <= fetch_hand + 1;
-          cacheline_last_clock <= cacheline_clock;
-          cache[fetch_hand] <= cacheline[FS-1:1];
-       end
+     else begin // cache_init == 0
+        if (~cacheline_needs_update) begin
+           cache_total_uninit <= cache_total_uninit - 1;
+           cacheline_needs_update <= 1;
+           cache[fetch_hand] <= cacheline[FS-1:0];
+           fetch_hand <= fetch_hand + 1;
+        end
+     end
 
-   assign cache_empty = (hand == fetch_hand * TS) & cache_dirty;
+   // cache_empty
+   assign cache_empty = (hand_cmp == (fetch_hand * FS)) & cache_dirty;
 
    // Hand
    reg [HS-1:0] i;
-   always @(posedge CLK)
-     if (RESET | ~cache_init) begin
+   always @(posedge ACLK)
+     if (ARESETn | ~cache_init) begin
         hand <= 0;
-        o_valid <= 0;
+        O_VALID <= 0;
      end
-     else if (~cache_empty & i_ready) begin
-        o_valid <= 1;
-        if (hand == ((FS-1) * BS) - 1)
-          hand <= 0;
-        else begin
-           for (i = 1; i <= BS; i++)
-             if (hand == ((TS * i) - 1) - 1) begin
-                cache_dirty <= 1;
-             end
-           hand <= hand + 1;
-        end
-     end // if (~cache_empty)
-     else if (cache_empty) begin
-        hand <= hand;
-        o_valid <= 0;
+     else if (~cache_empty & cache_init & I_READY) begin
+        O_VALID <= 1;
+        for (i = 1; i <= BS; i++)
+          if (hand_cmp == ((FS * i) - 1) - 1) begin
+             cache_dirty <= 1;
+          end
+        hand <= hand + 1;
      end
-     else if (~i_ready) begin
-        o_valid <= 1;
+     else if (~I_READY & cache_init) begin
+        O_VALID <= 1;
         hand <= hand;
      end
+     else if (cache_empty | ~cache_init) begin
+        hand <= hand;
+        O_VALID <= 0;
+     end
+
 
    initial begin
       if ($test$plusargs("trace") != 0) begin
@@ -157,5 +163,6 @@ module list_cache
          $dumpvars();
       end
       $display("[%0t] Model running...\n", $time);
+      $display("[%0t] BS:%d, FS:%d, HS:%d\n", $time, BS, FS, HS);
    end
 endmodule
