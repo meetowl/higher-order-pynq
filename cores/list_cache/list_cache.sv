@@ -6,8 +6,6 @@ module list_cache
     parameter DBW = 256
     )
    (
-    /* verilator lint_off UNUSEDSIGNAL */
-    /* verilator lint_off UNDRIVEN */
 
     // AXI4-Stream Communication
     input wire           ACLK,
@@ -16,18 +14,21 @@ module list_cache
     input wire           TVALID,
     output reg           TREADY,
 
+    /* verilator lint_off UNUSEDSIGNAL */
+    /* verilator lint_off UNDRIVEN */
     //// Unused
     input wire [3:0]     TDEST,
     input wire [7:0]     TID,
     input wire           TLAST,
     input wire [DBW-1:0] TUSER,
+    /* verilator lint_on UNUSEDSIGNAL */
+    /* verilator lint_on UNDRIVEN */
 
     // HoP Module Communication
     input reg            I_READY,
     output reg [DW-1:0]  OUT,
     output reg           O_VALID
-    /* verilator lint_on UNUSEDSIGNAL */
-    /* verilator lint_on UNDRIVEN */
+
     );
 
    // Buffer Size

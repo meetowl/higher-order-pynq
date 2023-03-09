@@ -102,6 +102,39 @@ int main(int argc, char** argv, char** env) {
                 increment_eval(contextp, top);
                 iter++;
         }
+
+        // Second iteration
+        i = 0;
+        correct_out = PACKET_START;
+        while (i < packets && iter < MAX_ITER*3) {
+                // Prepare packet
+                int packet[fetch_size];
+                for (int j = 0; j < fetch_size; j++) {
+                        packet[j] = xs[(i * fetch_size) + j];
+                }
+
+                printf("[");
+                for (int j = 0; j < fetch_size; j++) {
+                        printf("%d,", packet[j]);
+                        top->TDATA[j] = packet[j];
+                }
+                printf("]\n");
+                top->TVALID = 1;
+
+                if (top->TREADY) {
+                        i++;
+                }
+                iter++;
+
+                increment_eval(contextp, top);
+        }
+        top->TVALID = 0;
+
+        while (top->O_VALID && iter < (MAX_ITER * 4)) {
+                increment_eval(contextp, top);
+                iter++;
+        }
+
         top->final();
         return 0;
 }
