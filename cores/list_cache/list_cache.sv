@@ -66,11 +66,15 @@ module list_cache
    reg [1:0]                    cache_total_uninit;
    reg                          cache_empty;
 
+   // ARESETn is ACTIVE_LOW by default.
+   wire                         reset_active;
+   assign reset_active = ~ARESETn;
+
    // OUT
    // O_VALID is up if its correct so don't care about
    // non-nil values.
    always @(posedge ACLK)
-     if (ARESETn)
+     if (reset_active)
        OUT <= 0;
      else
        OUT <= cache_read[hand];
@@ -79,7 +83,7 @@ module list_cache
 
    // Cacheline Refresh mech
    always @(posedge ACLK)
-     if (ARESETn) begin
+     if (reset_active) begin
         cacheline <= 0;
         cacheline_needs_update <= 1;
         TREADY <= 0;
@@ -107,7 +111,7 @@ module list_cache
 
    // Cache fill Mech
    always @(posedge ACLK)
-     if (ARESETn) begin
+     if (reset_active) begin
         fetch_hand <= 0;
         cache_dirty <= 0;
         cache_total_uninit <= BS;
@@ -135,7 +139,7 @@ module list_cache
    // Hand
    reg [HS-1:0] i;
    always @(posedge ACLK)
-     if (ARESETn | ~cache_init) begin
+     if (reset_active | ~cache_init) begin
         hand <= 0;
         O_VALID <= 0;
      end
