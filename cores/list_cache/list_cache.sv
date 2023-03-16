@@ -44,6 +44,7 @@ module list_cache
    // Registered Input
    reg [FS-1:0][DW-1:0] cacheline;
    reg                  cacheline_needs_update;
+   reg                  cacheline_updated;
 
    // Caching
    reg [BS-1:0][FS-1:0][DW-1:0] cache;
@@ -69,6 +70,15 @@ module list_cache
    // ARESETn is ACTIVE_LOW by default.
    wire                         reset_active;
    assign reset_active = ~ARESETn;
+   // Register TVALID
+   /* verilator lint_off UNUSEDSIGNAL */
+   reg                          TVALID_r;
+   always @(posedge ACLK)
+     if (reset_active)
+       TVALID_r <= 0;
+     else
+       TVALID_r <= TVALID;
+   /* verilator lint_on UNUSEDSIGNAL */
 
    // OUT
    // O_VALID is up if its correct so don't care about
@@ -85,28 +95,36 @@ module list_cache
    always @(posedge ACLK)
      if (reset_active) begin
         cacheline <= 0;
-        cacheline_needs_update <= 1;
+        cacheline_updated <= 0;
         TREADY <= 0;
      end
-     else if (cache_init) begin
-       if (TVALID & cacheline_needs_update) begin
-          cacheline <= TDATA;
-          cacheline_needs_update <= 0;
-          TREADY <= 1;
-       end
-       else if (TREADY & TVALID)
-         TREADY <= 0;
-     end
-     else begin // cache_init == 0
-        if (TVALID & cacheline_needs_update) begin
-           cacheline <= TDATA;
-           cacheline_needs_update <= 0;
-           TREADY <= 1;
+     else begin // ~reset_active
+        if (TVALID) begin
+           if (cacheline_needs_update) begin
+              cacheline <= TDATA;
+              cacheline_updated <= 1;
+              TREADY <= 1;
+           end
+           else begin // ~cacheline_needs_update
+              if (~cacheline_updated) begin
+                 cacheline <= TDATA;
+                 cacheline_updated <= 1;
+                 TREADY <= 1;
+              end
+              else begin // cacheline_updated
+                 TREADY <= 0;
+              end
+           end
         end
-        else if (TVALID & TREADY)
-          TREADY <= 0;
-
-
+        else begin // ~TVALID
+           if (cacheline_needs_update) begin
+              TREADY <= 1;
+              if (cacheline_updated)  cacheline_updated <= 0;
+           end
+           else begin // ~cacheline_needs_update
+              TREADY <= 0;
+           end
+        end
      end
 
    // Cache fill Mech
@@ -115,19 +133,24 @@ module list_cache
         fetch_hand <= 0;
         cache_dirty <= 0;
         cache_total_uninit <= BS;
+        cacheline_needs_update <= 1;
      end
      else if (cache_init) begin
-       if (cache_dirty & ~cacheline_needs_update) begin
-          cache[fetch_hand] <= cacheline;
+        if (cache_dirty) begin
           cacheline_needs_update <= 1;
-          fetch_hand <= fetch_hand + 1;
-          cache_dirty <= 0;
-       end
+          if (cacheline_updated) begin
+             cache[fetch_hand] <= cacheline;
+             fetch_hand <= fetch_hand + 1;
+             cache_dirty <= 0;
+          end
+        end
+        else // ~cache_dirty
+          cacheline_needs_update <= 0;
      end
-     else begin // cache_init == 0
-        if (~cacheline_needs_update) begin
+     else begin // ~cache_init
+        cacheline_needs_update <= 1;
+        if (cacheline_updated) begin
            cache_total_uninit <= cache_total_uninit - 1;
-           cacheline_needs_update <= 1;
            cache[fetch_hand] <= cacheline[FS-1:0];
            fetch_hand <= fetch_hand + 1;
         end

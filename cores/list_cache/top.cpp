@@ -53,13 +53,13 @@ int main(int argc, char** argv, char** env) {
         for (int i = 0; i < list_size; i++) xs[i] = correct_out + i;
 
         top->ACLK = 0;
-        top->ARESETn = 1;
+        top->ARESETn = 0;
         top->TVALID = 0;
         // Warm up
         for (int i = 0; i < 2; i++) {
                 increment_eval(contextp, top);
         }
-        top->ARESETn = 0;
+        top->ARESETn = 1;
 
         // Pin IP ready pin to ready
         top->I_READY = 1;
