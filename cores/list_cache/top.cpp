@@ -84,6 +84,9 @@ int main(int argc, char** argv, char** env) {
                         printf("%d,", packet[j]);
                         top->TDATA[j] = packet[j];
                 }
+
+                increment_eval(contextp, top);
+
                 printf("]\n");
                 top->TVALID = 1;
 
@@ -92,7 +95,7 @@ int main(int argc, char** argv, char** env) {
                 }
                 iter++;
 
-                increment_eval(contextp, top);
+
         }
         // AXI4-Stream spec says if we have nothing else to give
         // then TVALID goes down.
