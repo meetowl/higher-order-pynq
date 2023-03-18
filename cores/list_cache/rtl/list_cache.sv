@@ -10,17 +10,17 @@ module list_cache
     // AXI4-Stream Communication
     input wire           ACLK,
     input wire           ARESETn,
-    input wire [DBW-1:0] TDATA,
-    input wire           TVALID,
-    output reg           TREADY,
+    input wire [DBW-1:0] S0_AXIS_TDATA,
+    input wire           S0_AXIS_TVALID,
+    output wire          S0_AXIS_TREADY,
 
     /* verilator lint_off UNUSEDSIGNAL */
     /* verilator lint_off UNDRIVEN */
     //// Unused
-    input wire [3:0]     TDEST,
-    input wire [7:0]     TID,
-    input wire           TLAST,
-    input wire [DBW-1:0] TUSER,
+    input wire [3:0]     S0_AXIS_TDEST,
+    input wire [7:0]     S0_AXIS_TID,
+    input wire           S0_AXIS_TLAST,
+    input wire [DBW-1:0] S0_AXIS_TUSER,
     /* verilator lint_on UNUSEDSIGNAL */
     /* verilator lint_on UNDRIVEN */
 
@@ -44,6 +44,7 @@ module list_cache
    // Registered Input
    reg [FS-1:0][DW-1:0] cacheline;
    reg                  cacheline_needs_update;
+   reg                  cacheline_updated;
 
    // Caching
    reg [BS-1:0][FS-1:0][DW-1:0] cache;
@@ -81,33 +82,48 @@ module list_cache
 
    assign cache_init = cache_total_uninit == 0;
 
+   assign S0_AXIS_TREADY = S0_AXIS_TVALID & (cacheline_needs_update | ~cacheline_updated);
+
    // Cacheline Refresh mech
    always @(posedge ACLK)
      if (reset_active) begin
         cacheline <= 0;
-        cacheline_needs_update <= 1;
-        TREADY <= 0;
+        cacheline_updated <= 0;
      end
-     else if (cache_init) begin
-       if (TVALID & cacheline_needs_update) begin
-          cacheline <= TDATA;
-          cacheline_needs_update <= 0;
-          TREADY <= 1;
-       end
-       else if (TREADY & TVALID)
-         TREADY <= 0;
-     end
-     else begin // cache_init == 0
-        if (TVALID & cacheline_needs_update) begin
-           cacheline <= TDATA;
-           cacheline_needs_update <= 0;
-           TREADY <= 1;
+     else begin // ~reset_active
+        if (S0_AXIS_TVALID) begin
+           if (S0_AXIS_TREADY) begin
+              if (cacheline_needs_update) begin
+                 cacheline <= S0_AXIS_TDATA;
+                 cacheline_updated <= 1;
+              end
+              else begin // ~cacheline_needs_update
+                 if (~cacheline_updated) begin
+                    cacheline <= S0_AXIS_TDATA;
+                    cacheline_updated <= 1;
+                 end
+              end
+           end
+           else begin // ~S0_AXIS_TREADY
+              if (cacheline_needs_update) begin
+                 cacheline <= S0_AXIS_TDATA;
+                 cacheline_updated <= 1;
+              end
+              else begin // ~cacheline_needs_update
+                 if (~cacheline_updated) begin
+                    cacheline <= S0_AXIS_TDATA;
+                    cacheline_updated <= 1;
+                 end
+              end
+           end
         end
-        else if (TVALID & TREADY)
-          TREADY <= 0;
+        else begin // ~S0_AXIS_TVALID
+           if (cacheline_needs_update & cacheline_updated) cacheline_updated <= 0;
+        end // else: !if(S0_AXIS_TVALID)
+     end // else: !if(reset_active)
 
 
-     end
+
 
    // Cache fill Mech
    always @(posedge ACLK)
@@ -115,22 +131,30 @@ module list_cache
         fetch_hand <= 0;
         cache_dirty <= 0;
         cache_total_uninit <= BS;
+        cacheline_needs_update <= 1;
      end
      else if (cache_init) begin
-       if (cache_dirty & ~cacheline_needs_update) begin
-          cache[fetch_hand] <= cacheline;
+        if (cache_dirty) begin
           cacheline_needs_update <= 1;
-          fetch_hand <= fetch_hand + 1;
-          cache_dirty <= 0;
-       end
+          if (cacheline_updated) begin
+             cache[fetch_hand] <= cacheline;
+             fetch_hand <= fetch_hand + 1;
+             cache_dirty <= 0;
+          end
+        end
+        else // ~cache_dirty
+          cacheline_needs_update <= 0;
      end
-     else begin // cache_init == 0
-        if (~cacheline_needs_update) begin
+     else begin // ~cache_init
+        if (cacheline_updated) begin
            cache_total_uninit <= cache_total_uninit - 1;
-           cacheline_needs_update <= 1;
            cache[fetch_hand] <= cacheline[FS-1:0];
            fetch_hand <= fetch_hand + 1;
+           if (cache_total_uninit == 1) cacheline_needs_update <= 0;
+           else                         cacheline_needs_update <= 1;
         end
+        else
+          cacheline_needs_update <= 1;
      end
 
    // cache_empty
