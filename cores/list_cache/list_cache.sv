@@ -10,17 +10,17 @@ module list_cache
     // AXI4-Stream Communication
     input wire           ACLK,
     input wire           ARESETn,
-    input wire [DBW-1:0] TDATA,
-    input wire           TVALID,
-    output wire          TREADY,
+    input wire [DBW-1:0] S0_AXIS_TDATA,
+    input wire           S0_AXIS_TVALID,
+    output wire          S0_AXIS_TREADY,
 
     /* verilator lint_off UNUSEDSIGNAL */
     /* verilator lint_off UNDRIVEN */
     //// Unused
-    input wire [3:0]     TDEST,
-    input wire [7:0]     TID,
-    input wire           TLAST,
-    input wire [DBW-1:0] TUSER,
+    input wire [3:0]     S0_AXIS_TDEST,
+    input wire [7:0]     S0_AXIS_TID,
+    input wire           S0_AXIS_TLAST,
+    input wire [DBW-1:0] S0_AXIS_TUSER,
     /* verilator lint_on UNUSEDSIGNAL */
     /* verilator lint_on UNDRIVEN */
 
@@ -82,7 +82,7 @@ module list_cache
 
    assign cache_init = cache_total_uninit == 0;
 
-   assign TREADY = TVALID & (cacheline_needs_update | ~cacheline_updated);
+   assign S0_AXIS_TREADY = S0_AXIS_TVALID & (cacheline_needs_update | ~cacheline_updated);
 
    // Cacheline Refresh mech
    always @(posedge ACLK)
@@ -91,35 +91,35 @@ module list_cache
         cacheline_updated <= 0;
      end
      else begin // ~reset_active
-        if (TVALID) begin
-           if (TREADY) begin
+        if (S0_AXIS_TVALID) begin
+           if (S0_AXIS_TREADY) begin
               if (cacheline_needs_update) begin
-                 cacheline <= TDATA;
+                 cacheline <= S0_AXIS_TDATA;
                  cacheline_updated <= 1;
               end
               else begin // ~cacheline_needs_update
                  if (~cacheline_updated) begin
-                    cacheline <= TDATA;
+                    cacheline <= S0_AXIS_TDATA;
                     cacheline_updated <= 1;
                  end
               end
            end
-           else begin // ~TREADY
+           else begin // ~S0_AXIS_TREADY
               if (cacheline_needs_update) begin
-                 cacheline <= TDATA;
+                 cacheline <= S0_AXIS_TDATA;
                  cacheline_updated <= 1;
               end
               else begin // ~cacheline_needs_update
                  if (~cacheline_updated) begin
-                    cacheline <= TDATA;
+                    cacheline <= S0_AXIS_TDATA;
                     cacheline_updated <= 1;
                  end
               end
            end
         end
-        else begin // ~TVALID
+        else begin // ~S0_AXIS_TVALID
            if (cacheline_needs_update & cacheline_updated) cacheline_updated <= 0;
-        end // else: !if(TVALID)
+        end // else: !if(S0_AXIS_TVALID)
      end // else: !if(reset_active)
 
 

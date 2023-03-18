@@ -54,7 +54,7 @@ int main(int argc, char** argv, char** env) {
 
         top->ACLK = 0;
         top->ARESETn = 0;
-        top->TVALID = 0;
+        top->S0_AXIS_TVALID = 0;
         // Warm up
         for (int i = 0; i < 2; i++) {
                 increment_eval(contextp, top);
@@ -82,15 +82,15 @@ int main(int argc, char** argv, char** env) {
                 printf("[");
                 for (int j = 0; j < fetch_size; j++) {
                         printf("%d,", packet[j]);
-                        top->TDATA[j] = packet[j];
+                        top->S0_AXIS_TDATA[j] = packet[j];
                 }
 
                 increment_eval(contextp, top);
 
                 printf("]\n");
-                top->TVALID = 1;
+                top->S0_AXIS_TVALID = 1;
 
-                if (top->TREADY) {
+                if (top->S0_AXIS_TREADY) {
                         i++;
                 }
                 iter++;
@@ -98,8 +98,8 @@ int main(int argc, char** argv, char** env) {
 
         }
         // AXI4-Stream spec says if we have nothing else to give
-        // then TVALID goes down.
-        top->TVALID = 0;
+        // then S0_AXIS_TVALID goes down.
+        top->S0_AXIS_TVALID = 0;
 
         while (top->O_VALID && iter < (MAX_ITER * 2)) {
                 increment_eval(contextp, top);
@@ -119,19 +119,19 @@ int main(int argc, char** argv, char** env) {
                 printf("[");
                 for (int j = 0; j < fetch_size; j++) {
                         printf("%d,", packet[j]);
-                        top->TDATA[j] = packet[j];
+                        top->S0_AXIS_TDATA[j] = packet[j];
                 }
                 printf("]\n");
-                top->TVALID = 1;
+                top->S0_AXIS_TVALID = 1;
 
-                if (top->TREADY) {
+                if (top->S0_AXIS_TREADY) {
                         i++;
                 }
                 iter++;
 
                 increment_eval(contextp, top);
         }
-        top->TVALID = 0;
+        top->S0_AXIS_TVALID = 0;
 
         while (top->O_VALID && iter < (MAX_ITER * 4)) {
                 increment_eval(contextp, top);
