@@ -1,0 +1,29 @@
+{ "hardware": {
+    "add_reduce": {
+        "signature": "[b32] -> b32",
+        "module_name": "HoP_add_reduce_0",
+        "regspace": {
+            "arg1_offset": 8,
+            "ret_offset": 10
+        },
+        "lists": {
+            "arg1_dma": "axi_dma"
+        }
+    },
+    "add": {
+        "signature": "b32 -> b32 -> b32",
+        "module_name": "adder_ppo_0",
+        "regspace": {
+            "arg1_offset": 8,
+            "arg2_offset": 9,
+            "ret_offset": 10
+        }
+    }
+},
+
+"python": {
+},
+
+"CPP": {
+}
+}

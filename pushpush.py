@@ -1,7 +1,7 @@
 import math
 import string
 import types
-import multiprocessing
+import concurrent.futures
 import traceback
 import time
 import random
@@ -23,17 +23,24 @@ class Context:
     * the hardware metadata file keeps track of the pushpush objects instantiated in the hardware. This will be replaced by metadata.
     """
     def __init__(self, overlay:Overlay, size=1024) -> None:
-        # Get paths and names
+        # Overlay
         self.overlay_bitfile_name = overlay.bitfile_name
         self.overlay_path = os.path.dirname(self.overlay_bitfile_name)
         self.overlay_name = Path(self.overlay_bitfile_name).stem
+        self.overlay = overlay
 
+        # Metadata
         self.overlay_metadata_name = f'{self.overlay_path}/{self.overlay_name}.json'
         stubs_module_name = f'{self.overlay_path}/{self.overlay_name}.py'
 
+        # Context Space
         self.size = size
         self.mem = allocate(shape=(self.size,), dtype='u4')
 
+        # Thread pool
+        self.tpool = concurrent.futures.ThreadPoolExecutor()
+
+        # Dictionary
         self.top = 0
         self.objects = dict()
 
