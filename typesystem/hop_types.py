@@ -40,16 +40,16 @@ class Type:
 
         # List case
         if isinstance(var, list):
-            listType = Type.typeMatch(var.pop())
+            listType = Type.typeMatch(var[0])
             # If it is a base type, find the minimum base width we need
             # This is prone to errors (hi future debugging me, ilu :))
             if listType.is_base():
                 maxWidth = listType.width
                 for e in var:
-                    w = e.bit_length
+                    w = e.bit_length()
                     if w > maxWidth:
                         maxWidth = w
-                return Base(width=maxWidth)
+                return List(Base.for_num(maxWidth))
             else:
                 raise NotImplementedError(f'Only list of first-order types are currently supported, '
                                           + f'not {listType}!')
@@ -68,25 +68,24 @@ class Base(Type):
               32: np.int32,
               64: np.int64}
     def __init__(self, width=32):
-        self.width = None
-        # Align width with numpy type
+        self.width = width
+
+    def align_width(width):
         for w in Base.widths:
             if width <= w:
-                self.width <= w
-
-        if self.width == None:
-            raise TypeError(f'Type of width {width} is bigger than ' +
-                            f'max supported width ({widths[-1]})!')
+                return w
+        raise TypeError(f'Type of width {width} is bigger than ' +
+                        f'max supported width ({Base.widths[-1]})!')
 
     @classmethod
     def for_num(base, num) -> 'Base':
-        return base(num.bit_length())
+        return base(Base.align_width(num.bit_length()))
 
     def __str__(self):
         return f'b{self.width}'
 
     def __eq__(self, other):
-        return other.is_base() and self.width == other.width
+        return other.is_base() and self.width >= other.width
 
     def is_base(self):
         return True
@@ -156,18 +155,31 @@ class Function(Type):
         else:
             return 1 + self.typeout.arity()
 
+    def getArgumentType(self, n:int) -> 'Type':
+        if n == 0:
+            return self.typein
+        if n >= self.arity() or n < 0:
+            return None
+        if self.typeout.is_function():
+            return self.typeout.getArgumentType(n - 1)
+        else:
+            return None
+
+
     def typeCheck(self, argStubs) -> bool:
         checkStack = list(map(lambda stub: stub.signature, argStubs))
         currTerm = self.typein
         nextTerm = self.typeout
-
+        termNum = 0
         while checkStack:
             a = checkStack.pop()
-            # Type doesn't match
+            termNum += 1
             if not currTerm == a:
+                # Type doesn't match
+                print(f'warn: arg {termNum} {a} mismatch with {currTerm}')
                 return False
-            # Argument count mismatch
             if checkStack and not nextTerm.is_function():
+                # Argument count mismatch
                 return False
 
             if checkStack:
