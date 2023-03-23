@@ -41,9 +41,15 @@ class Type:
         # List case
         if isinstance(var, list):
             listType = Type.typeMatch(var[0])
-            # If it is a base type, find the minimum base width we need
-            # This is prone to errors (hi future debugging me, ilu :))
             if listType.is_base():
+                # Assume that if it is a numpy type it was made from an
+                # ndarray, which is type homogenous. This may cause bugs
+                # if ppl are doing funky things.
+                if np.issubdtype(type(var[0]), np.integer):
+                    return List(listType)
+
+                # If it is a base type, find the minimum base width we need
+                # This is prone to errors (hi future debugging me, ilu :))
                 maxWidth = listType.width
                 for e in var:
                     w = e.bit_length()
