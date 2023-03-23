@@ -38,7 +38,7 @@ class Context:
         self.mem = allocate(shape=(self.size,), dtype='u4')
 
         # Thread pool
-        self.tpool = concurrent.futures.ThreadPoolExecutor()
+        self.tpool = concurrent.futures.ThreadPoolExecutor(thread_name_prefix='hop_list_stream')
 
         # Dictionary
         self.top = 0

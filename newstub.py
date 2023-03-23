@@ -13,7 +13,7 @@ from pynq import allocate as pynq_allocate
 import typesystem.hop_types as ht
 start_time = time.time()
 # config/debug space
-REGSPACE_ADDR = 0x40
+REGSPACE_OFFSET = 0x40
 STATUS_OFFSET = 4
 
 class Stub:
@@ -53,14 +53,13 @@ class Stub:
 
 
 class HardwareStub(Stub):
-    def __init__(self, context, name, meta, debugWrites = True):
+    def __init__(self, context, name, meta, debugWrites = False):
         signature = ht.parse(meta['signature'])
         self.module_name = meta['module_name']
         self.base_addr = context.overlay.ip_dict[self.module_name]['phys_addr']
-        self.regspace_offset = REGSPACE_ADDR
+        self.regspace_offset = REGSPACE_OFFSET
         self.hwMemory = pynq_MMIO(self.base_addr, 65536, debug=debugWrites)
         self.debugWrites = debugWrites
-        self.debug = 0
 
         super().__init__(context, name, signature)
 
@@ -70,7 +69,7 @@ class HardwareStub(Stub):
 
 
     def __createFunctionStub(self, meta):
-        self.regspace_addr = REGSPACE_ADDR
+        self.regspace_offset = REGSPACE_OFFSET
         self.arg_offsets = list()
         self.list_dma = dict()
         for i in range(0, self.signature.arity()):
@@ -90,37 +89,44 @@ class HardwareStub(Stub):
         return stubArgs
 
 
-    def __printWrite(self, address, data):
-        if self.debugWrites and False:
-            print(f'[{time.time() - start_time}] {self.name}: write: ' +
-                  f'*({address}) = {data}')
+    def __printWrite(self, address, data, label=None):
+        if self.debugWrites:
+            if label:
+                print(f'[{time.time() - start_time}] {self.name}: \'{label}\' write: ' +
+                      f'*({address}) = {data}')
+            else:
+                print(f'[{time.time() - start_time}] {self.name}: write: ' +
+                      f'*({address}) = {data}')
 
-    def __regspaceWrite(self, offset, data):
+    def __regspaceWrite(self, offset, data, label=None):
+        realOffset = offset * 0x4
+        self.__printWrite(f'{self.hwMemory.base_addr} + {self.regspace_offset} + {realOffset}', data, label)
+        self.hwMemory.write(self.regspace_offset + realOffset, data)
+
+    def writeRegspace(self, offset, data):
         realOffset = offset * 0x4
         self.__printWrite(f'{self.hwMemory.base_addr} + {self.regspace_offset} + {realOffset}', data)
         self.hwMemory.write(self.regspace_offset + realOffset, data)
 
     def transferList(self, listStub, argNum, buf_size=65536):
-        self.debug |= 0b1
         inc_size = len(listStub) // buf_size
         rem_size = len(listStub) % buf_size
         buf = pynq_allocate(shape=(buf_size,), dtype=np.uint32)
 
         # Fill Remainder Buffer
         if rem_size > 0:
-            self.debug |= 0b1
             rem_buf = pynq_allocate(shape=(rem_size))
             listStub.copyTo(rem_buf, inc_size*buf_size, len(listStub) + 1)
 
         # Toggle CREADY to 1
-        self.__regspaceWrite(self.arg_offsets[argNum], 1)
+        self.__regspaceWrite(self.arg_offsets[argNum], 1, label='cready1')
 
         # Transfer the bulk of the list
         for i in range(0, inc_size):
-            self.debug |= 0b10
             listStub.copyTo(buf, i*buf_size, (i+1)*buf_size)
             self.list_dma[argNum].sendchannel.transfer(buf)
             self.list_dma[argNum].sendchannel.wait()
+
 
         # Transfer the remainder
         if rem_size > 0:
@@ -129,18 +135,17 @@ class HardwareStub(Stub):
             del rem_buf
 
         # Toggle CREADY to 0
-        self.__regspaceWrite(self.arg_offsets[argNum], 0)
-        self.debug |= 0b100
+        self.__regspaceWrite(self.arg_offsets[argNum], 0, label='cready0')
         del buf
         return
 
     def __baseArgCall(self, args, streamFutureQueue):
-        self.__regspaceWrite(self.ret_offset, 0)
+        self.__regspaceWrite(self.ret_offset, 0, label='result_addr0')
         # HARDWARE STATUS: Should be in idle state
 
         # All of the following code fills out the CEP
         # Specify the CEP address
-        self.__regspaceWrite(1, self.base_addr + self.regspace_offset)
+        self.__regspaceWrite(1, self.base_addr + self.regspace_offset, label='cep_addr')
         # If this is a function, it we need to supply where to fetch arguments from
         if self.signature.is_function():
             ## Supply the argument addresses for all
@@ -148,16 +153,13 @@ class HardwareStub(Stub):
                 ## Supply argument addresses in CEP
                 arg = args[i]
                 if not arg.signature.is_list():
-                    self.__regspaceWrite(self.arg_offsets[i], arg.result_addr)
+                    self.__regspaceWrite(self.arg_offsets[i], arg.result_addr, label='arg_result_addr')
                 else:
                     streamFuture = self.context.tpool.submit(self.transferList, arg, i)
                     streamFutureQueue.append(streamFuture)
 
-                    # self.__regspaceWrite(self.ret_offset, self.result_addr)
-                    # self.__transferList(arg, i)
-
         ## Specify the return address (this should be the last step for any module)
-        self.__regspaceWrite(self.ret_offset, self.result_addr)
+        self.__regspaceWrite(self.ret_offset, self.result_addr, label='result_addr1')
 
         # HARDWARE STATUS: Should now be waiting for the first argument if it needs any.
         # It would have written where it expects the first argument to the result address of the argument
@@ -227,7 +229,6 @@ class HardwareStub(Stub):
         while len(streamFutureQueue) > 0:
             future = streamFutureQueue.pop()
             fr = future.result()
-            print(fr)
 
         while self.context.get(self.result_status_offset) == 0:
             # Massive sleep for debug
@@ -237,11 +238,10 @@ class HardwareStub(Stub):
                 self.printRegspace(1, 4)
                 self.printRegspace(8)
                 self.printRegspace(10)
-                print(f'yeah, {self.debug}')
                 time.sleep(1)
             else:
                 time.sleep(0.1)
-        print(self.debug)
+
         self.context.clear(self.result_addr + 4)
         self.res = self.context.get(self.result_offset)
 
@@ -257,6 +257,15 @@ class HardwareStub(Stub):
 
     def printRegStatus(self):
         self.printRegspace(STATUS_OFFSET)
+
+    def printRegspacePretty(self):
+        # This is hard-coded so its easier for the programmer (me <3)
+        print(f'sig:         {self.hwMemory.read(self.respace_offset)}')
+        print(f'status:      {self.hwMemory.read(self.respace_offset + 4 * 0x4)}')
+        print(f'call_count:  {self.hwMemory.read(self.respace_offset + 2 * 0x4)}')
+        print(f'debug:       {self.hwMemory.read(self.respace_offset + 3 * 0x4)}')
+        print(f'rep_addr:    {self.hwMemory.read(self.respace_offset + 10 * 0x4)}')
+        print(f'cready:      {self.hwMemory.read(self.respace_offset + 8 * 0x4)}')
 
 # This is currently unused
 class PythonStub(Stub):
