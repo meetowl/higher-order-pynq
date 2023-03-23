@@ -22,8 +22,9 @@
 
 // debug flags
 #define IDLE 1
-#define PROCESSING_LIST 2
-#define WRITING_RESULT 3
+#define WAITING_CREADY 2
+#define PROCESSING_LIST 3
+#define WRITING_RESULT 4
 
 #define DW 32
 typedef ap_uint<DW> tpkt;
@@ -37,18 +38,21 @@ void add_reduce_ppo(volatile int *m_itf,
 #pragma HLS INTERFACE axis port=list_in
 
         regspace[STATUS] = IDLE;
-	regspace[SIGNATURE] = 10101;
+	regspace[SIGNATURE] = 10102;
         uint32_t accumulator = 0;
 
         if (regspace[RET_ADDR]) {
+                regspace[STATUS] = WAITING_CREADY;
+                while (!regspace[LIST_CREADY]);
                 regspace[STATUS] = PROCESSING_LIST;
                 while (!list_in.empty() || regspace[LIST_CREADY]) {
 #pragma HLS PIPELINE II=1
                         tpkt t = 0;
                         if (list_in.read_nb(t)) {
-                                regspace[CALL_COUNT] += 1;
                                 accumulator += t;
+                                regspace[CALL_COUNT] += 1;
                         }
+                        regspace[DEBUG] += 1;
                 }
                 regspace[STATUS] = WRITING_RESULT;
                 /* Push the result back to the REP */
