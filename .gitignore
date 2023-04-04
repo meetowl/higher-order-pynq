@@ -5,3 +5,6 @@ cores/list_cache/obj_dir*
 cores/list_cache/obj_dir
 *.vcd
 /cores/list_cache/waves.gtkw
+vivado*.log
+vivado*.jou
+vitis_hls.log
