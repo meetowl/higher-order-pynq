@@ -1,11 +1,4 @@
 { "hardware": {
-    "a": {
-        "signature": "b32",
-        "module_name": "a_top_0",
-        "regspace": {
-            "ret_offset": 10
-        }
-    },
     "add": {
         "signature": "b32 -> b32 -> b32",
         "module_name": "adder_ppo_0",
