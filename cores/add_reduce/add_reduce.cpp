@@ -38,7 +38,7 @@ void add_reduce_ppo(volatile int *m_itf,
 #pragma HLS INTERFACE axis port=list_in
 
         regspace[STATUS] = IDLE;
-	regspace[SIGNATURE] = 10102;
+	regspace[SIGNATURE] = 10101;
         uint32_t accumulator = 0;
 
         if (regspace[RET_ADDR]) {
