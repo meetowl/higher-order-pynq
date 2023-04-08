@@ -36,6 +36,8 @@ class Context:
         # Context Space
         self.size = size
         self.mem = allocate(shape=(self.size,), dtype='u4')
+        self.slots_per_object = 2
+        self.alloc_set = set([x for x in range(self.size // self.slots_per_object)])
 
         # Thread pool
         self.tpool = concurrent.futures.ThreadPoolExecutor(thread_name_prefix='hop_list_stream')
@@ -90,18 +92,23 @@ class Context:
                 print(f'\t{objName} : {str(self.functions[objType][objName].signature)}')
         return
 
-    def add(self, name, slots):
+    def add(self, name):
         """
         Adds a named pushpush object to the endpoint space
         using a number of slots. Each slot is 4 bytes.
         """
-        if self.top + slots >= self.size:
+        if len(self.alloc_set) == 0:
+            # There are no more allocations to give out
             raise RuntimeError('HoP Context has run out of endpoint space')
 
-        object_offset = self.top
+        object_offset = self.alloc_set.pop()
         self.objects[name] = object_offset
-        self.top = self.top + slots
         return (object_offset, self.mem.physical_address + object_offset * 0x4)
+
+    def remove(self, name):
+        slot = self.objects[name]
+        self.alloc_set.add(slot)
+        del self.objects[name]
 
     def get_base(self, name) -> int:
         """

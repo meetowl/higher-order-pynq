@@ -21,7 +21,7 @@ class Stub:
         self.context = context
         self.name = name
         self.signature = signature
-        (self.result_offset, self.result_addr) = context.add(name, 2)
+        (self.result_offset, self.result_addr) = context.add(name)
         self.result_status_offset = self.result_offset + 1
 
     def from_meta_dict(context, funcType, name, meta):
@@ -49,6 +49,10 @@ class Stub:
     def printContext(self):
         print(self.signature)
         self.context.print(self.result_offset, self.result_status_offset+1)
+
+    def __del__(self):
+        self.context.remove(self.name)
+
 
 
 
@@ -81,12 +85,14 @@ class HardwareStub(Stub):
 
     def __transformToStub(self, args):
         stubArgs = list()
+        argsToDelete = list()
         for a in args:
             aStub = a
             if not isinstance(a, Stub):
                 aStub = Stub.stubFromVar(self.context, a)
+                argsToDelete.append(aStub)
             stubArgs.append(aStub)
-        return stubArgs
+        return (stubArgs, argsToDelete)
 
 
     def __printWrite(self, address, data, label=None):
@@ -160,7 +166,6 @@ class HardwareStub(Stub):
 
         ## Specify the return address (this should be the last step for any module)
         self.__regspaceWrite(self.ret_offset, self.result_addr, label='result_addr1')
-
         # HARDWARE STATUS: Should now be waiting for the first argument if it needs any.
         # It would have written where it expects the first argument to the result address of the argument
 
@@ -201,7 +206,7 @@ class HardwareStub(Stub):
         streamFutureQueue = list()
 
         if self.signature.is_function():
-            args = self.__transformToStub(args)
+            (args, argsToDelete) = self.__transformToStub(args)
             if not self.signature.typeCheck(args):
                 raise TypeError(f'expected \'{self.signature}\'')
         else:
@@ -222,6 +227,11 @@ class HardwareStub(Stub):
             self.printRegspace(0,15)
             self.context.print(self.result_offset, self.result_offset+2)
             print(f'res = {self.res}')
+
+        if self.signature.is_function():
+            for a in argsToDelete:
+                del a
+
         return self.res
 
     def __listen(self, streamFutureQueue):
@@ -243,6 +253,7 @@ class HardwareStub(Stub):
                 time.sleep(0.1)
 
         self.context.clear(self.result_addr + 4)
+
         self.res = self.context.get(self.result_offset)
 
     # ---- Debugging -----
