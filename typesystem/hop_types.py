@@ -38,8 +38,8 @@ class Type:
                 tupList.append(Type.typeMatch(e))
             return Tuple(tupList)
 
-        # List case
-        if isinstance(var, list):
+        # List case (treat np.ndarray as list)
+        if isinstance(var, list) or isinstance(var, np.ndarray):
             listType = Type.typeMatch(var[0])
             if listType.is_base():
                 # Assume that if it is a numpy type it was made from an
@@ -59,6 +59,7 @@ class Type:
             else:
                 raise NotImplementedError(f'Only list of first-order types are currently supported, '
                                           + f'not {listType}!')
+
         # Int case
         if isinstance(var, int):
             return Base.for_num(var)
