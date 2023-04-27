@@ -14,7 +14,7 @@ from pynq import MMIO
 from pynq import Overlay
 
 # Local imports
-import newstub as stubs
+import stubs
 import typesystem.hop_types as ht
 
 class Context:
